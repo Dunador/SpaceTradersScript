@@ -1,0 +1,25 @@
+{
+  "name": "spacetrader",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "@types/lodash": "^4.14.168"
+  },
+  "devDependencies": {
+    "@types/node": "^14.14.35",
+    "lodash": "^4.17.21",
+    "nodemon": "^2.0.7",
+    "spacetraders-sdk": "^1.3.0",
+    "ts-node": "^9.1.1",
+    "tslint": "^6.1.3",
+    "typescript": "^4.2.3"
+  },
+  "scripts": {
+    "test": "echo \"Error: no tests installed\" && exit 1",
+    "build": "tsc",
+    "start": "nodemon"
+  },
+  "author": "",
+  "license": "ISC"
+}
