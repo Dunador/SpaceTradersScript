@@ -26,7 +26,7 @@ let marketGoods: Goods[] = [];
 async function main() {
     while(true) {
         const userResponse = await spaceTraders.getAccount();
-        if(!currentShips) {
+        if(_.isEmpty(currentShips)) {
             userResponse.user.ships.forEach((ship) => {
                 let addShip: LoadedShip = {ship, cargoCost: 0};
                 currentShips.push(addShip);
@@ -81,6 +81,14 @@ async function updateMarketData(location: string) {
             updateItem.lowPrice = (item.pricePerUnit < updateItem.lowPrice ? item.pricePerUnit : updateItem.lowPrice);
             updateItem.highLoc = (item.pricePerUnit > updateItem.highPrice ? location : updateItem.highLoc);
             updateItem.lowLoc = (item.pricePerUnit < updateItem.lowPrice ? location : updateItem.lowLoc);
+        } else {
+            marketGoods.push({
+               symbol: item.symbol,
+               lowPrice: item.pricePerUnit,
+               lowLoc: location,
+               highPrice: item.pricePerUnit,
+               highLoc: location, 
+            });
         }
     });
     return marketData.location.marketplace;
