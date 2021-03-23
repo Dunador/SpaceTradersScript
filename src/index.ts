@@ -31,24 +31,33 @@ let currentUser: User;
 
 async function main() {
     while(true) {
-        const userResponse = await spaceTraders.getAccount().then((d) => { return d; }, 
-        (e) => {console.log(e);});
-        currentUser = (userResponse as AccountResponse).user;
-        if(_.isEmpty(currentShips)) {
-            for (const ship of (userResponse as AccountResponse).user.ships) {
-                let addShip: LoadedShip = {ship, cargoCost: 0};
-                currentShips.push(addShip);
-            }
-        } else {
-            for (const ship of (userResponse as AccountResponse).user.ships) {
-                let updateShip = currentShips.find((cship) => { return cship.ship.id === ship.id});
-                if (updateShip) {
-                    (updateShip as LoadedShip).ship = ship;
+        let userResponse;
+        try {
+            userResponse = await spaceTraders.getAccount().then((d) => { 
+                currentUser = (d as AccountResponse).user;
+                if(_.isEmpty(currentShips)) {
+                    for (const ship of (d as AccountResponse).user.ships) {
+                        let addShip: LoadedShip = {ship, cargoCost: 0};
+                        currentShips.push(addShip);
+                    }
                 } else {
-                    currentShips.push({ ship, cargoCost: 0 });
+                    for (const ship of (d as AccountResponse).user.ships) {
+                        let updateShip = currentShips.find((cship) => { return cship.ship.id === ship.id});
+                        if (updateShip) {
+                            (updateShip as LoadedShip).ship = ship;
+                        } else {
+                            currentShips.push({ ship, cargoCost: 0 });
+                        }
+                    }
                 }
-            }
+    
+                return d; 
+            }, 
+            (e) => {console.log(e);});
+        } catch (e) {
+            console.log(e);
         }
+        
         for (const cargoShip of currentShips) {
             currentShip = cargoShip;
             let shipLoc = cargoShip.ship.location;
@@ -87,13 +96,21 @@ async function sellGoods(stationMarket: Marketplace[]) {
                     const potentialGain = item.quantity * stationGood.pricePerUnit - (currentShip.cargoCost || 0);
                     if (potentialGain > 0) {
                         await delay(2000);
-                        const order = await spaceTraders.sellGood(currentShip.ship.id, item.good, item.quantity).then((d)=>{ return d; },
-                        (e) => {
+                        try {
+                            const order = await spaceTraders.sellGood(currentShip.ship.id, item.good, item.quantity).then((d)=>{ 
+                                console.log(d);
+                                currentShip.ship = d.ship;
+                                currentUser.credits = d.credits;
+                                return d; 
+                            },
+                            (e) => {
+                                console.log(e);
+                            });
+                            console.log("Ship "+currentShip.ship.id+" selling "+item.good+" for "+(order as SellResponse).order.total);
+                        } catch (e) {
                             console.log(e);
-                        });
-                        currentShip.ship = (order as SellResponse).ship;
-                        currentShips[0].ship = (order as SellResponse).ship;
-                        console.log("Ship "+currentShip.ship.id+" selling "+item.good+" for "+(order as SellResponse).order.total);
+                            continue;
+                        }
                     }
                 }
             }
@@ -149,10 +166,10 @@ async function buyGoods(stationMarket: Marketplace[]) {
 
     for (const purchaseGood of goodsAvailable) {
         const good: Marketplace = purchaseGood.good;
-        if (currentShip.ship.spaceAvailable > 20 && purchaseGood.gainPerQty > 0 && currentUser.credits >= good.pricePerUnit) {
+        if (currentShip.ship.spaceAvailable > 20 && purchaseGood.gainPerQty > 0 && (currentUser.credits - 500) > good.pricePerUnit) {
             let quantityToBuy = Math.floor((currentShip.ship.spaceAvailable - 20) / good.volumePerUnit);
             if (good.volumePerUnit === 0) {
-                quantityToBuy = Math.floor((currentUser.credits - 500) / good.pricePerUnit);
+                quantityToBuy = Math.floor((currentUser.credits - 3000) / good.pricePerUnit);
             }
             if (quantityToBuy > good.quantityAvailable) {
                 quantityToBuy = good.quantityAvailable;
@@ -161,13 +178,20 @@ async function buyGoods(stationMarket: Marketplace[]) {
                 quantityToBuy = Math.floor(currentUser.credits / good.pricePerUnit);
             }
             currentShip.ship.spaceAvailable -= quantityToBuy * good.volumePerUnit;
-            console.log("Ship "+currentShip.ship.id+" buying "+good.symbol+" for "+good.pricePerUnit * quantityToBuy);
-            await spaceTraders.purchaseGood(currentShip.ship.id, good.symbol, quantityToBuy).then((d) => { 
-                currentShip.ship = d.ship;
-                currentUser.credits = d.credits;
-                return d; 
-            }, 
-            (e) => {console.log(e);});
+            try {
+                await spaceTraders.purchaseGood(currentShip.ship.id, good.symbol, quantityToBuy).then((d) => { 
+                    console.log(d);
+                    currentShip.ship = d.ship;
+                    currentUser.credits = d.credits;
+                    return d; 
+                }, 
+                (e) => {console.log(e);});
+                console.log("Ship "+currentShip.ship.id+" buying "+good.symbol+" for "+good.pricePerUnit * quantityToBuy);
+                await delay(2000);
+            } catch (e) {
+                console.log(e);
+                continue;
+            }
         }
     }
 }
@@ -201,11 +225,16 @@ async function navigate() {
                         console.log(e);
                     });
                     currentShip.ship = (tmp as SellResponse).ship;
-                    console.log("Creating regular flight to "+targetDest.symbol);
-                    await spaceTraders.createFlightPlan(currentShip.ship.id, targetDest.symbol).then((d)=>{ return d; },
-                    (e) => {
+                    try {
+                        console.log("Creating regular flight to "+targetDest.symbol);
+                        await spaceTraders.createFlightPlan(currentShip.ship.id, targetDest.symbol).then((d)=>{ return d; },
+                        (e) => {
+                            console.log(e);
+                        });
+                    } catch (e) {
                         console.log(e);
-                    });
+                    }
+
                 } else {
                     await backupNavigation(systemLocations as LocationsResponse);
                 }
@@ -254,11 +283,15 @@ async function backupNavigation(systemLocs: LocationsResponse) {
             });
             currentShip.ship = (o as SellResponse).ship;
 
-            console.log("Creating backup nav to "+shortestTrip);
-            await spaceTraders.createFlightPlan(currentShip.ship.id, shortestTrip as string).then((d)=>{ return d; },
-            (e) => {
+            try {
+                console.log("Creating backup nav to "+shortestTrip);
+                await spaceTraders.createFlightPlan(currentShip.ship.id, shortestTrip as string).then((d)=>{ return d; },
+                (e) => {
+                    console.log(e);
+                });
+            } catch (e) {
                 console.log(e);
-            });
+            }
         }
     } 
 }
