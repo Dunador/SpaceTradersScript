@@ -174,23 +174,26 @@ async function buyGoods(stationMarket: Marketplace[]) {
             if (quantityToBuy > good.quantityAvailable) {
                 quantityToBuy = good.quantityAvailable;
             }
-            if (quantityToBuy * good.pricePerUnit > currentUser.credits) {
-                quantityToBuy = Math.floor(currentUser.credits / good.pricePerUnit);
+            if ((quantityToBuy * good.pricePerUnit) >= currentUser.credits) {
+                quantityToBuy = Math.floor((currentUser.credits - 3000) / good.pricePerUnit);
             }
-            currentShip.ship.spaceAvailable -= quantityToBuy * good.volumePerUnit;
-            try {
-                await spaceTraders.purchaseGood(currentShip.ship.id, good.symbol, quantityToBuy).then((d) => { 
-                    console.log(d);
-                    currentShip.ship = d.ship;
-                    currentUser.credits = d.credits;
-                    return d; 
-                }, 
-                (e) => {console.log(e);});
-                console.log("Ship "+currentShip.ship.id+" buying "+good.symbol+" for "+good.pricePerUnit * quantityToBuy);
-                await delay(2000);
-            } catch (e) {
-                console.log(e);
-                continue;
+            if (quantityToBuy > 0) {
+                currentShip.ship.spaceAvailable -= quantityToBuy * good.volumePerUnit;
+                try {
+                    await spaceTraders.purchaseGood(currentShip.ship.id, good.symbol, quantityToBuy).then((d) => { 
+                        console.log(d);
+                        currentShip.ship = d.ship;
+                        currentUser.credits = d.credits;
+                        return d; 
+                    }, 
+                    (e) => {console.log(e);})
+                    .catch((e) => {console.log(e);});
+                    console.log("Ship "+currentShip.ship.id+" buying "+good.symbol+" for "+good.pricePerUnit * quantityToBuy);
+                    await delay(2000);
+                } catch (e) {
+                    console.log(e);
+                    continue;
+                }
             }
         }
     }
