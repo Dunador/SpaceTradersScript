@@ -153,14 +153,14 @@ async function updateMarketData(location: string) {
             let updateItem = marketGoods.find((good) => { return good.symbol === item.symbol});
             const updateIndex = marketGoods.indexOf(updateItem as Goods);
             if (updateItem) {
-                const lowLoc = await spaceTraders.getLocation(updateItem.lowLoc);
-                const highLoc = await spaceTraders.getLocation(updateItem.highLoc);
-                const currLoc = await spaceTraders.getLocation(location);
+                const lowLoc = (await spaceTraders.getLocation(updateItem.lowLoc)).location;
+                const highLoc = (await spaceTraders.getLocation(updateItem.highLoc)).location;
+                const currLoc = (await spaceTraders.getLocation(location)).location;
                 if (item.pricePerUnit >= updateItem.highPrice || location === updateItem.highLoc) {
                     if (item.pricePerUnit > updateItem.highPrice) {
                         updateItem.highPrice = item.pricePerUnit;
                         updateItem.highLoc = location;
-                    } else if (distance(lowLoc.location.x, currLoc.location.x, lowLoc.location.y, currLoc.location.y) < distance(lowLoc.location.x, highLoc.location.x, lowLoc.location.y, highLoc.location.y)) {
+                    } else if (distance(lowLoc, currLoc) < distance(lowLoc, highLoc)) {
                         updateItem.highPrice = item.pricePerUnit;
                         updateItem.highLoc = location;
                     }
@@ -169,7 +169,7 @@ async function updateMarketData(location: string) {
                     if (item.pricePerUnit > updateItem.lowPrice) {
                         updateItem.lowPrice = item.pricePerUnit;
                         updateItem.lowLoc = location;
-                    } else if (distance(highLoc.location.x, currLoc.location.x, highLoc.location.y, currLoc.location.y) < distance(lowLoc.location.x, highLoc.location.x, lowLoc.location.y, highLoc.location.y)) {
+                    } else if (distance(highLoc, currLoc) < distance(lowLoc, highLoc)) {
                         updateItem.lowPrice = item.pricePerUnit;
                         updateItem.lowLoc = location;
                     }
@@ -271,7 +271,7 @@ async function backupNavigation(systemLocs: LocationsResponse) {
     const currentLoc = systemLocs.locations.find((loc) => { return loc.symbol === currentShip.ship.location}) as Location;
     for (const loc of systemLocs.locations) {
         if (loc.symbol !== currentLoc.symbol) {
-            const distToLoc = distance(currentLoc.x, loc.x, currentLoc.y, loc.y);
+            const distToLoc = distance(currentLoc, loc);
             if (distToLoc < shortestTripDist) {
                 shortestTripDist = distToLoc;
                 shortestTrip = loc.symbol;
@@ -315,7 +315,8 @@ async function calculateFuelNeededForGood(good?: string) {
     } catch (e) {
         console.log(e);
     }
-    if (currentShip.ship.cargo.length > 0) {
+    // Need both conditions.  When determing distance for buying purposes, the cargo will always be empty.  When determining navigation, cargo should never be empty
+    if (currentShip.ship.cargo.length > 0 || !_.isEmpty(good)) {
         let goodToShip: string;
         if (good) {
             goodToShip = good;
@@ -328,7 +329,7 @@ async function calculateFuelNeededForGood(good?: string) {
                 const targetDest = (systemLocations as LocationsResponse).locations.find((loc) => { return loc.symbol === goodMarketData.highLoc});
                 const currentLoc = (systemLocations as LocationsResponse).locations.find((loc) => { return loc.symbol === currentShip.ship.location});
                 if (targetDest && currentLoc && (targetDest.symbol !== currentLoc.symbol)) {
-                    const distanceToMarket = distance(targetDest.x, currentLoc.x, targetDest.y, currentLoc.y);
+                    const distanceToMarket = distance(targetDest, currentLoc);
                     const penalty = currentLoc.type.toLowerCase() === "planet" ? 2 : 0;
                     const fuelNeeded = Math.round(distanceToMarket / 4) + penalty + 1;
                     return {targetDest: targetDest.symbol, fuelNeeded};
@@ -346,9 +347,9 @@ async function calculateFuelNeededForGood(good?: string) {
     }
 }
 
-function distance(x1: number, x2: number, y1: number, y2: number) {
-    const xdiff = Math.pow(x2 - x1, 2);
-    const ydiff = Math.pow(y2 - y1, 2);
+function distance(loc1: Location, loc2: Location) {
+    const xdiff = Math.pow(loc2.x - loc1.x, 2);
+    const ydiff = Math.pow(loc2.y - loc1.y, 2);
     return Math.ceil(Math.sqrt(xdiff+ydiff));
 }
 
