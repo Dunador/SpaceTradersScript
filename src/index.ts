@@ -13,6 +13,7 @@ export interface Goods {
     lowPrice: number,
     highLoc: string,
     lowLoc: string,
+    volume: number,
 }
 
 export interface PurchaseGoods {
@@ -51,7 +52,15 @@ const shipsToBuy: any = {
     }
 };
 
+let locationMap: Map<string, Location[]> = new Map();
+
+const knownSystems = ['OE', 'XV'];
+
 async function main() {
+    knownSystems.forEach(async (system) => {
+        const locations = (await spaceTraders.listLocations(system)).locations;
+        locationMap.set(system, locations);
+    });
     while(true) {
         let userResponse;
         try {
@@ -153,9 +162,10 @@ async function updateMarketData(location: string) {
             let updateItem = marketGoods.find((good) => { return good.symbol === item.symbol});
             const updateIndex = marketGoods.indexOf(updateItem as Goods);
             if (updateItem) {
-                const lowLoc = (await spaceTraders.getLocation(updateItem.lowLoc)).location;
-                const highLoc = (await spaceTraders.getLocation(updateItem.highLoc)).location;
-                const currLoc = (await spaceTraders.getLocation(location)).location;
+                const systemLocs = locationMap.get(location.substring(0,2)) as Location[];
+                const lowLoc = systemLocs.find((loc) => { return loc.symbol === updateItem?.lowLoc }) as Location;
+                const highLoc = systemLocs.find((loc) => { return loc.symbol === updateItem?.highLoc }) as Location;
+                const currLoc = systemLocs.find((loc) => { return loc.symbol === location }) as Location;
                 if (item.pricePerUnit >= updateItem.highPrice || location === updateItem.highLoc) {
                     if (item.pricePerUnit > updateItem.highPrice) {
                         updateItem.highPrice = item.pricePerUnit;
@@ -182,6 +192,7 @@ async function updateMarketData(location: string) {
                    lowLoc: location,
                    highPrice: item.pricePerUnit,
                    highLoc: location, 
+                   volume: item.volumePerUnit,
                 });
             }
         }
@@ -204,8 +215,6 @@ async function buyGoods(stationMarket: Marketplace[]) {
     }
     goodsAvailable = _.sortBy(goodsAvailable, ['gainPerQty']);
     goodsAvailable = _.reverse(goodsAvailable);
-
-    console.log(goodsAvailable);
 
     for (const purchaseGood of goodsAvailable) {
         const good: Marketplace = purchaseGood.good;
@@ -241,12 +250,23 @@ async function navigate() {
     const targetData = await calculateFuelNeededForGood();
     const targetDest = targetData.targetDest;
     const fuelNeeded = targetData.fuelNeeded;
-    while (fuelNeeded > currentShip.ship.spaceAvailable) {
-        try {
-            const o = await spaceTraders.sellGood(currentShip.ship.id, currentShip.ship.cargo[0].good, 1);
-            currentShip.ship = o.ship;
-        } catch (e) {
-            console.log(e);
+    let goodToSell: Cargo = currentShip.ship.cargo.find((good) => { return good.good !== "FUEL" && good.good !== "RESEARCH"}) as Cargo;
+    if (!_.isEmpty(goodToSell)) {
+        let goodToSellData: Goods = marketGoods.find((marketGood) => { return marketGood.symbol === goodToSell.good }) as Goods;
+        while (fuelNeeded > currentShip.ship.spaceAvailable) {
+            try {
+                const o = await spaceTraders.sellGood(
+                    currentShip.ship.id, goodToSell.good, 1);
+                currentShip.ship = o.ship;
+            } catch (e) {
+                try {
+                    await spaceTraders.jettisonGoods(currentShip.ship.id, goodToSell.good, 1);
+                    currentShip.ship.spaceAvailable += goodToSellData.volume;
+                } catch (e) {
+                    goodToSell = currentShip.ship.cargo.find((good) => { return good.good !== "FUEL" && good.good !== "RESEARCH" && good.good !== goodToSell.good}) as Cargo;
+                    goodToSellData = marketGoods.find((marketGood) => { return marketGood.symbol === goodToSell.good }) as Goods;
+                }
+            }
         }
     }
 
@@ -265,11 +285,11 @@ async function navigate() {
     }
 }
 
-async function backupNavigation(systemLocs: LocationsResponse) {
+async function backupNavigation(systemLocs: Location[]) {
     let shortestTrip = currentShip.ship.location;
     let shortestTripDist = 1000;
-    const currentLoc = systemLocs.locations.find((loc) => { return loc.symbol === currentShip.ship.location}) as Location;
-    for (const loc of systemLocs.locations) {
+    const currentLoc = systemLocs.find((loc) => { return loc.symbol === currentShip.ship.location}) as Location;
+    for (const loc of systemLocs) {
         if (loc.symbol !== currentLoc.symbol) {
             const distToLoc = distance(currentLoc, loc);
             if (distToLoc < shortestTripDist) {
@@ -278,7 +298,7 @@ async function backupNavigation(systemLocs: LocationsResponse) {
             }
         }
     }
-    const targetLoc = systemLocs.locations.find((loc) => { return loc.symbol === shortestTrip}) as Location;
+    const targetLoc = systemLocs.find((loc) => { return loc.symbol === shortestTrip}) as Location;
     const penalty = currentLoc.type.toLowerCase() === "planet" ? 2 : 0;
     const fuelNeeded = Math.round(shortestTripDist / 4) + penalty + 1;
     return {targetDest: targetLoc.symbol, fuelNeeded};
@@ -309,12 +329,8 @@ async function checkPurchaseNewShip() {
 }
 
 async function calculateFuelNeededForGood(good?: string) {
-    let systemLocations;
-    try {
-        systemLocations = await spaceTraders.listLocations("OE");
-    } catch (e) {
-        console.log(e);
-    }
+
+    const systemLocations = locationMap.get((currentShip.ship.location as string).substring(0,2)) as Location[];
     // Need both conditions.  When determing distance for buying purposes, the cargo will always be empty.  When determining navigation, cargo should never be empty
     if (currentShip.ship.cargo.length > 0 || !_.isEmpty(good)) {
         let goodToShip: string;
@@ -326,24 +342,25 @@ async function calculateFuelNeededForGood(good?: string) {
         if (goodToShip) {
             const goodMarketData = marketGoods.find((good) => { return good.symbol === goodToShip});
             if (goodMarketData && goodMarketData.highLoc) {
-                const targetDest = (systemLocations as LocationsResponse).locations.find((loc) => { return loc.symbol === goodMarketData.highLoc});
-                const currentLoc = (systemLocations as LocationsResponse).locations.find((loc) => { return loc.symbol === currentShip.ship.location});
+                const targetDest = systemLocations.find((loc) => { return loc.symbol === goodMarketData.highLoc});
+                const currentLoc = systemLocations.find((loc) => { return loc.symbol === currentShip.ship.location});
                 if (targetDest && currentLoc && (targetDest.symbol !== currentLoc.symbol)) {
                     const distanceToMarket = distance(targetDest, currentLoc);
                     const penalty = currentLoc.type.toLowerCase() === "planet" ? 2 : 0;
-                    const fuelNeeded = Math.round(distanceToMarket / 4) + penalty + 1;
+                    const shipPenalty = currentShip.ship.class === "MK-II" ? 1 : 0;
+                    const fuelNeeded = Math.round(distanceToMarket / 4) + penalty + shipPenalty + 1;
                     return {targetDest: targetDest.symbol, fuelNeeded};
                 } else {
-                    return backupNavigation(systemLocations as LocationsResponse);
+                    return backupNavigation(systemLocations);
                 }
             } else {
-                return backupNavigation(systemLocations as LocationsResponse);
+                return backupNavigation(systemLocations);
             }
         } else {
-            return backupNavigation(systemLocations as LocationsResponse);
+            return backupNavigation(systemLocations);
         }
     } else {
-        return backupNavigation(systemLocations as LocationsResponse);
+        return backupNavigation(systemLocations);
     }
 }
 
