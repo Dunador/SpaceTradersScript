@@ -26,7 +26,7 @@ export interface PurchaseGoods {
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 const spaceTraders = new SpaceTraders();
 
-spaceTraders.init("Dunador", "892541ab-9ecd-4cbf-a9a9-c61600fbd6e5");
+spaceTraders.init("Dunador", "100f6044-8168-4c74-a51e-896719f3196e");
 let currentShips: LoadedShip[] = [];
 let currentShip: LoadedShip;
 let marketGoods: Goods[] = [];
@@ -43,7 +43,7 @@ const shipsToBuy: any = {
         "MK-III":0,
     },
     Electrum: {
-        "MK-I":0,
+        "MK-I":10,
         "MK-II":0,
         "MK-III":0,
     },
@@ -217,10 +217,11 @@ async function buyGoods(stationMarket: Marketplace[]) {
             if (quantityToBuy >= good.quantityAvailable) {
                 quantityToBuy = good.quantityAvailable - 1;
             }
-            if (quantityToBuy > 0) {
+            while (quantityToBuy > 0) {
                 currentShip.ship.spaceAvailable -= quantityToBuy * good.volumePerUnit;
                 try {
-                    const order = await spaceTraders.purchaseGood(currentShip.ship.id, good.symbol, quantityToBuy);
+                    const order = await spaceTraders.purchaseGood(currentShip.ship.id, good.symbol, (quantityToBuy > 300 ? 300 : quantityToBuy));
+                    quantityToBuy -= 300;
                     currentShip.ship = order.ship;
                     currentUser.credits = order.credits;
                     await delay(500);
@@ -236,7 +237,7 @@ async function navigate() {
     const targetData = await calculateFuelNeededForGood();
     const targetDest = targetData.targetDest;
     const fuelNeeded = targetData.fuelNeeded;
-    let goodToSell: Cargo = currentShip.ship.cargo.find((good) => { return good.good !== "FUEL" && good.good !== "RESEARCH"}) as Cargo;
+    let goodToSell: Cargo = currentShip.ship.cargo.find((good) => { return good.good !== "FUEL" }) as Cargo;
     if (!_.isEmpty(goodToSell)) {
         let goodToSellData: Goods = marketGoods.find((marketGood) => { return marketGood.symbol === goodToSell.good }) as Goods;
         while (fuelNeeded > currentShip.ship.spaceAvailable) {
@@ -249,7 +250,7 @@ async function navigate() {
                     await spaceTraders.jettisonGoods(currentShip.ship.id, goodToSell.good, 1);
                     currentShip.ship.spaceAvailable += goodToSellData.volume;
                 } catch (e) {
-                    goodToSell = currentShip.ship.cargo.find((good) => { return good.good !== "FUEL" && good.good !== "RESEARCH" && good.good !== goodToSell.good}) as Cargo;
+                    goodToSell = currentShip.ship.cargo.find((good) => { return good.good !== "FUEL" && good.good !== goodToSell.good}) as Cargo;
                     goodToSellData = marketGoods.find((marketGood) => { return marketGood.symbol === goodToSell.good }) as Goods;
                 }
             }
@@ -315,7 +316,7 @@ async function calculateFuelNeededForGood(good?: string) {
         if (good) {
             goodToShip = good;
         } else {
-            goodToShip = currentShip.ship.cargo.find((good) => { return (good.good !== "FUEL" && good.good !== "RESEARCH")})?.good as string;
+            goodToShip = currentShip.ship.cargo.find((good) => { return (good.good !== "FUEL") })?.good as string;
         }
         if (goodToShip) {
             const goodMarketData = marketGoods.find((good) => { return good.symbol === goodToShip});
