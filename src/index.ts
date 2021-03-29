@@ -1,6 +1,7 @@
 import * as _ from 'lodash';
 import { SpaceTraders } from 'spacetraders-sdk';
 import { Cargo, Marketplace, YourShip, LocationsResponse, MarketplaceResponse, AccountResponse, User, SellResponse, PurchaseResponse, Ship, Location } from 'spacetraders-sdk/dist/types';
+import { generateDisplay } from './monitor/monitor';
 
 export interface LoadedShip {
     ship: YourShip,
@@ -84,21 +85,15 @@ async function main() {
     
                 return d; 
             }, 
-            (e) => {console.log(e);});
-        } catch (e) {
-            console.log(e);
-        }
+            (e) => {});
+        } catch (e) {}
         
         for (const cargoShip of currentShips) {
             currentShip = cargoShip;
             let shipLoc = cargoShip.ship.location;
-            console.log("Current Credits: "+(userResponse as AccountResponse).user.credits);
 
             if (!_.isEmpty(shipLoc)) {
-                console.log("Ship "+cargoShip.ship.id+" currently at "+shipLoc);
                 await doSomething();
-            } else {
-                console.log("Ship "+cargoShip.ship.id+" currently in transit");
             }
         }
         await checkPurchaseNewShip();
@@ -123,9 +118,7 @@ async function sellGoods(stationMarket: Marketplace[]) {
                 try {
                     const order = await spaceTraders.sellGood(currentShip.ship.id, "FUEL", item.quantity);
                     currentShip.ship = (order as SellResponse).ship;
-                } catch (e) {
-                    console.log(e);
-                }
+                } catch (e) {}
             } else {
                 const stationGood = stationMarket.find((good) => { return good.symbol == item.good });
                 if (stationGood) {
@@ -136,9 +129,7 @@ async function sellGoods(stationMarket: Marketplace[]) {
                             const order = await spaceTraders.sellGood(currentShip.ship.id, item.good, item.quantity);
                             currentShip.ship = order.ship;
                             currentUser.credits = order.credits;
-                            console.log("Ship "+currentShip.ship.id+" selling "+item.good+" for "+(order as SellResponse).order.total);
                         } catch (e) {
-                            console.log(e);
                             continue;
                         }
                     }
@@ -152,11 +143,8 @@ async function updateMarketData(location: string) {
     let marketData;
     try {
         marketData = await spaceTraders.getMarketplace(location);
-    } catch (e) {
-        console.log(e);
-    }
+    } catch (e) {}
 
-    console.log("Updating Market data");
     for (const item of (marketData as MarketplaceResponse).location.marketplace) {
         if (item.symbol !== "FUEL") {
             let updateItem = marketGoods.find((good) => { return good.symbol === item.symbol});
@@ -235,10 +223,8 @@ async function buyGoods(stationMarket: Marketplace[]) {
                     const order = await spaceTraders.purchaseGood(currentShip.ship.id, good.symbol, quantityToBuy);
                     currentShip.ship = order.ship;
                     currentUser.credits = order.credits;
-                    console.log("Ship "+currentShip.ship.id+" buying "+good.symbol+" for "+good.pricePerUnit * quantityToBuy);
                     await delay(500);
                 } catch (e) {
-                    console.log(e);
                     continue;
                 }
             }
@@ -273,16 +259,11 @@ async function navigate() {
     try {
         let tmp = await spaceTraders.purchaseGood(currentShip.ship.id, "FUEL", fuelNeeded);
         currentShip.ship = tmp.ship;
-    } catch (e) {
-        console.log(e);
-    }
+    } catch (e) {}
 
     try {
-        console.log("Creating flight to "+targetDest);
         await spaceTraders.createFlightPlan(currentShip.ship.id, targetDest);
-    } catch (e) {
-        console.log(e);
-    }
+    } catch (e) {}
 }
 
 async function backupNavigation(systemLocs: Location[]) {
@@ -317,12 +298,9 @@ async function checkPurchaseNewShip() {
             ) {
                 try {
                     await spaceTraders.purchaseShip(purchaseLocation.location, ship.type);
-                    console.log("Purchasing "+ship.type+" for "+purchaseLocation.price);
                     currentUser.credits -= purchaseLocation.price;
                     await delay(500);
-                } catch (e) {
-                    console.log(e);
-                }
+                } catch (e) {}
             }
         }
     }
@@ -371,4 +349,8 @@ function distance(loc1: Location, loc2: Location) {
 }
 
 main();
+
+setInterval(() => {
+    generateDisplay(currentShips, currentUser);
+}, 5000).unref();
 
