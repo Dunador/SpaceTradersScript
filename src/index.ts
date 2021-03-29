@@ -129,8 +129,8 @@ async function sellGoods(stationMarket: Marketplace[]) {
             } else {
                 const stationGood = stationMarket.find((good) => { return good.symbol == item.good });
                 if (stationGood) {
-                    const potentialGain = item.quantity * stationGood.pricePerUnit - (currentShip.cargoCost || 0);
-                    if (potentialGain > 0) {
+                    const marketData = marketGoods.find((good) => { return good.symbol === stationGood.symbol }) as Goods;
+                    if (currentShip.ship.location === marketData.highLoc) {
                         await delay(500);
                         try {
                             const order = await spaceTraders.sellGood(currentShip.ship.id, item.good, item.quantity);
