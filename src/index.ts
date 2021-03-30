@@ -165,20 +165,18 @@ async function updateMarketData(location: string) {
                 const highToCurrDist = distance(highLoc, currLoc) +1;
                 const currentDist = distance(lowLoc, highLoc) + 1;
                 let newUpdateItem = _.cloneDeep(updateItem);
-                if ((item.pricePerUnit - (item as any)['spread']) >= updateItem.highPrice && updateItem.highLoc !== location)
-                {
-                    if (((item.pricePerUnit - updateItem.lowPrice) / (lowToCurrDist === 0 ? 1 : lowToCurrDist)) > ((updateItem.highPrice - updateItem.lowPrice) / (currentDist === 0 ? 1 : currentDist))) {
-                        newUpdateItem.highPrice = item.pricePerUnit - (item as any)['spread'];
-                        newUpdateItem.highLoc = location;
-                    }
-                }
 
-                if ((item.pricePerUnit + (item as any)['spread']) <= updateItem.lowPrice && updateItem.lowLoc !== location) {
-                    if (((updateItem.highPrice - item.pricePerUnit) / (highToCurrDist === 0 ? 1 : highToCurrDist)) > ((updateItem.highPrice - updateItem.lowPrice) / (currentDist === 0 ? 1 : currentDist))) {
-                        newUpdateItem.lowPrice = item.pricePerUnit + (item as any)['spread'];
-                        newUpdateItem.lowLoc = location;
-                    }
+                if (((item.pricePerUnit - updateItem.lowPrice) / (lowToCurrDist === 0 ? 1 : lowToCurrDist)) > ((updateItem.highPrice - updateItem.lowPrice) / (currentDist === 0 ? 1 : currentDist)) || updateItem.highLoc === currLoc.symbol) {
+                    newUpdateItem.highPrice = item.pricePerUnit - (item as any)['spread'];
+                    newUpdateItem.highLoc = location;
                 }
+            
+
+                if (((updateItem.highPrice - item.pricePerUnit) / (highToCurrDist === 0 ? 1 : highToCurrDist)) > ((updateItem.highPrice - updateItem.lowPrice) / (currentDist === 0 ? 1 : currentDist)) || updateItem.lowLoc === currLoc.symbol) {
+                    newUpdateItem.lowPrice = item.pricePerUnit + (item as any)['spread'];
+                    newUpdateItem.lowLoc = location;
+                }
+                
                 marketGoods[updateIndex] = newUpdateItem;
             } else {
                 marketGoods.push({
