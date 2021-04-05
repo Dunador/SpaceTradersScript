@@ -16,10 +16,21 @@ let table = blessed.listtable({
   padding: 0,
   align: 'center',
   border: 'line',
+  alwaysScroll: true,
+  scrollable: true,
+  scrollbar: {
+    style: {
+      bg: 'yellow'
+    },
+  },
+  keys: true,
 });
 
 screen.append(table);
 
+screen.key(['escape', 'q', 'C-c'], function(ch, key) {
+  return process.exit(0);
+});
 
 export function generateDisplay(ships: LoadedShip[], user: User) {
 
@@ -38,6 +49,10 @@ function generateData(ships: LoadedShip[]) {
   for (const ship of orderedShips) {
     data.push([ship.ship.id, ship.ship.type, ship.ship.location || 'In Transit', (ship.ship.maxCargo - ship.ship.spaceAvailable)+'/'+ship.ship.maxCargo]);
   }
+
+  data = _.orderBy(data, (item) => {
+    return item[2];
+  });
 
   return data;
 }
