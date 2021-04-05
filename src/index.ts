@@ -106,7 +106,7 @@ async function main() {
             }
         }
         await checkPurchaseNewShip();
-        await delay(10000);
+        await delay(1000);
     }
 }
 
@@ -115,7 +115,6 @@ async function doSomething() {
         const stationMarket = await updateMarketData(currentShip.ship.location);
         if (currentShip.ship.manufacturer !== "Jackshaw") {
             await sellGoods(stationMarket);
-            await delay(500);
             await buyGoods(stationMarket);
             await navigate();
         }
@@ -135,7 +134,6 @@ async function sellGoods(stationMarket: Marketplace[]) {
             } else {
                 const stationGood = stationMarket.find((good) => { return good.symbol == item.good });
                 if (stationGood) {
-                    await delay(500);
                     try {
                         const order = await spaceTraders.sellGood(currentShip.ship.id, item.good, item.quantity);
                         currentShip.ship = order.ship;
@@ -262,7 +260,6 @@ async function buyGoods(stationMarket: Marketplace[]) {
                     const order = await spaceTraders.purchaseGood(currentShip.ship.id, goodToBuy.symbol, quantityToBuy);
                     currentShip.ship = order.ship;
                     currentUser.credits = order.credits;
-                    await delay(500);
                 } catch (e) {
                     console.log(e);
                 }
@@ -339,7 +336,6 @@ async function checkPurchaseNewShip() {
                 try {
                     await spaceTraders.purchaseShip(purchaseLocation.location, ship.type);
                     currentUser.credits -= purchaseLocation.price;
-                    await delay(500);
                 } catch (e) {
                     console.log(e);
                 }
