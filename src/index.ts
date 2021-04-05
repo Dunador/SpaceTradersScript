@@ -367,8 +367,9 @@ function calculateFuelNeededForGood(good?: string) {
                 if (targetDest && currentLoc && (targetDest.symbol !== currentLoc.symbol)) {
                     const distanceToMarket = distance(targetDest, currentLoc);
                     const penalty = currentLoc.type.toLowerCase() === "planet" ? 2 : 0;
-                    const shipPenalty = currentShip.ship.class === "MK-II" ? 1 : 0;
-                    const fuelNeeded = Math.round(distanceToMarket / 4) + penalty + shipPenalty + 1;
+                    const mk2ShipPenalty = currentShip.ship.class === "MK-II" ? 1 : 0;
+                    const mk3ShipPenalty = currentShip.ship.class === "MK-III" ? 2 : 0;
+                    const fuelNeeded = Math.round(distanceToMarket / 4) + penalty + mk2ShipPenalty + mk3ShipPenalty + 1;
                     return {targetDest: targetDest.symbol, fuelNeeded};
                 } else {
                     return backupNavigation(systemLocations);
