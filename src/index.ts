@@ -254,10 +254,11 @@ async function buyGoods(stationMarket: Marketplace[]) {
             if (quantityToBuy >= goodMarketData.quantityAvailable) {
                 quantityToBuy = goodMarketData.quantityAvailable - 1;
             }
-            if (quantityToBuy > 0) {
+            while (quantityToBuy > 0) {
                 currentShip.ship.spaceAvailable -= quantityToBuy * goodToBuy.volume;
                 try {
-                    const order = await spaceTraders.purchaseGood(currentShip.ship.id, goodToBuy.symbol, quantityToBuy);
+                    const order = await spaceTraders.purchaseGood(currentShip.ship.id, goodToBuy.symbol, (quantityToBuy > 300 ? 300 : quantityToBuy));
+                    quantityToBuy -= 300;
                     currentShip.ship = order.ship;
                     currentUser.credits = order.credits;
                 } catch (e) {
