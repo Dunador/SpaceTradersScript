@@ -36,9 +36,9 @@ let marketGoods: Goods[] = [];
 let currentUser: User;
 const shipsToBuy: any = {
     Gravager: {
-        "MK-I": 40,
-        "MK-II":20,
-        "MK-III":10,
+        "MK-I": 10,
+        "MK-II":5,
+        "MK-III":20,
     },
     Jackshaw: {
         "MK-I": 10,
@@ -46,18 +46,18 @@ const shipsToBuy: any = {
         "MK-III":0,
     },
     Electrum: {
-        "MK-I":10,
-        "MK-II":10,
-        "MK-III":10,
+        "MK-I": 0,
+        "MK-II":0,
+        "MK-III":0,
     },
     Zetra: {
-        "MK-I":10,
-        "MK-II":10,
+        "MK-I":0,
+        "MK-II":0,
     },
     Hermes: {
-        "MK-I": 10,
-        "MK-II": 10,
-        "MK-III": 10,
+        "MK-I": 0,
+        "MK-II": 0,
+        "MK-III": 0,
     }
 };
 
@@ -319,7 +319,9 @@ function backupNavigation(systemLocs: Location[]) {
     const tripDist = distance(targetDest, currentLoc);
 
     const penalty = currentLoc.type.toLowerCase() === "planet" ? 2 : 0;
-    const fuelNeeded = Math.round(tripDist / 4) + penalty + 1;
+    const mk2ShipPenalty = currentShip.ship.class === "MK-II" ? 1 : 0;
+    const mk3ShipPenalty = currentShip.ship.class === "MK-III" ? 2 : 0;
+    const fuelNeeded = Math.round(tripDist / 4) + penalty + mk2ShipPenalty + mk3ShipPenalty + 1;    
     return {targetDest: targetDest.symbol, fuelNeeded};
 }
 
