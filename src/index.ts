@@ -113,11 +113,11 @@ async function main() {
 async function doSomething() {
     if (currentShip.ship.location && (currentShip.ship.location !== 'OE-XV-91-2' && currentShip.ship.location !== 'XV-OE-2-91')) {
         const stationMarket = await updateMarketData(currentShip.ship.location);
-        // if (currentShip.ship.manufacturer !== "Jackshaw") {
+         if (currentShip.ship.manufacturer !== "Jackshaw") {
             await sellGoods(stationMarket);
             await buyGoods(stationMarket);
             await navigate();
-        // }
+        }
     }
 }
 
