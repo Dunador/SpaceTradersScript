@@ -355,7 +355,7 @@ async function checkPurchaseNewShip() {
     // Keep 250 credits per open cargo space
     currentShips.forEach((ship) => {
         if (ship.ship.manufacturer !== 'Jackshaw')
-            creditsToHold += ship.ship.spaceAvailable * 250
+            creditsToHold += ship.ship.maxCargo * 100
     });
     for (let ship of availShips.ships) {
         for (let purchaseLocation of ship.purchaseLocations) {
