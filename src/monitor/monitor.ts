@@ -9,17 +9,39 @@ let screen = blessed.screen({
 
 screen.title = 'Space Trader Monitor';
 
+// let consoleBox = blessed.box({
+//   top: 0,
+//   left: 0,
+//   padding: 2,
+//   height: '50%',
+//   width: '100%',
+//   keys: true,
+//   mouse: true,
+//   alwaysScroll: true,
+//   scrollable: true,
+//   border: 'line',
+//   scrollbar: {
+//     style: {
+//       ch: ' ',
+//       bg: 'red'
+//     }
+//   }
+// });
+
+// screen.append(consoleBox);
+
 let table = blessed.listtable({
+  bottom: 0,
+  left: 0,
   height: '100%',
   width: '100%',
-  pad: 0,
-  padding: 0,
   align: 'center',
   border: 'line',
   alwaysScroll: true,
   scrollable: true,
   scrollbar: {
     style: {
+      fg: 'orange',
       bg: 'yellow'
     },
   },
@@ -34,8 +56,7 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
 
 export function generateDisplay(ships: LoadedShip[], user: User) {
 
-  let data = [['Credits ' + user.credits]];
-  data.push(['Ship ID', 'Ship Type', 'Location', 'Cargo']);
+  let data = [['Credits ' + user.credits, '', '', '', ''], ['Ship ID', 'Ship Type', 'Location', 'Cargo Space', 'Cargo Items']];
   data = data.concat(generateData(ships));
   table.setData(data);
   table.focus();
@@ -47,7 +68,13 @@ function generateData(ships: LoadedShip[]) {
 
   let data: string[][] = [];
   for (const ship of orderedShips) {
-    data.push([ship.ship.id, ship.ship.type, ship.ship.location || 'In Transit', (ship.ship.maxCargo - ship.ship.spaceAvailable)+'/'+ship.ship.maxCargo]);
+    data.push([
+      ship.ship.id, 
+      ship.ship.type, 
+      ship.ship.location || 'In Transit', 
+      (ship.ship.maxCargo - ship.ship.spaceAvailable)+'/'+ship.ship.maxCargo,
+      ship.ship.cargo.map(item => item.good+' x '+item.quantity).filter(item => item).join(', '),
+    ]);
   }
 
   data = _.orderBy(data, (item) => {
@@ -55,4 +82,9 @@ function generateData(ships: LoadedShip[]) {
   });
 
   return data;
+}
+
+export function log(output: string) {
+  // consoleBox.pushLine(output);
+  screen.render();
 }
