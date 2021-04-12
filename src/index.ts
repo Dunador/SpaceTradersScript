@@ -38,7 +38,7 @@ const shipsToBuy: any = {
     Gravager: {
         "MK-I": 10,
         "MK-II":5,
-        "MK-III":20,
+        "MK-III":50,
     },
     Jackshaw: {
         "MK-I": 10,
