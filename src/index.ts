@@ -134,7 +134,8 @@ async function sellGoods(stationMarket: Marketplace[]) {
                 }
             } else {
                 const stationGood = stationMarket.find((good) => { return good.symbol == item.good });
-                if (stationGood) {
+                const marketData = marketGoods.find(good => good.symbol === item.good);
+                if (stationGood && marketData && marketData.lowLoc !== currentShip.ship.location) {
                     let qtyToSell = item.quantity;
                     while(qtyToSell > 0) {
                         try {
