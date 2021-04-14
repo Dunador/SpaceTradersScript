@@ -262,10 +262,10 @@ async function buyGoods(stationMarket: Marketplace[]) {
             if (quantityToBuy >= goodMarketData.quantityAvailable) {
                 quantityToBuy = goodMarketData.quantityAvailable - 1;
             }
-            if ((quantityToBuy * goodToBuy.lowPrice) >= currentUser.credits) {
-                return;
+            if ((quantityToBuy * goodMarketData.pricePerUnit) >= currentUser.credits) {
+                quantityToBuy = Math.floor((currentUser.credits - creditsToMaintain) / goodMarketData.pricePerUnit);
             }
-            
+
             while (quantityToBuy > 0) {
                 currentShip.ship.spaceAvailable -= quantityToBuy * goodToBuy.volume;
                 try {
@@ -353,7 +353,7 @@ function backupNavigation(systemLocs: Location[]) {
 async function checkPurchaseNewShip() {
     const availShips = await spaceTraders.viewAvailableShips();
     let creditsToHold = 0;
-    // Keep 250 credits per open cargo space
+    // Keep 100 credits per open cargo space
     currentShips.forEach((ship) => {
         if (ship.ship.manufacturer !== 'Jackshaw')
             creditsToHold += ship.ship.maxCargo * 100
