@@ -240,6 +240,7 @@ async function buyGoods(stationMarket: Marketplace[]) {
     let goodToBuy: Goods;
     let goodMarketData;
     let orderedMarket = _.orderBy(marketGoods, ['cdv'], ['desc']);
+    const creditsToMaintain = 20000;
 
     if (currentShip.ship.location === orderedMarket[0].lowLoc) {
         goodToBuy = orderedMarket[0];
@@ -255,17 +256,16 @@ async function buyGoods(stationMarket: Marketplace[]) {
     if (goodToBuy && goodMarketData) {
         const routeFuel = calculateFuelNeededForGood(goodToBuy.symbol).fuelNeeded;
 
-        if (currentShip.ship.spaceAvailable > routeFuel && goodToBuy.cdv > 0 && (currentUser.credits - 3000 - (routeFuel * 2)) > goodToBuy.lowPrice) {
+        if (currentShip.ship.spaceAvailable > routeFuel && goodToBuy.cdv > 0 && (currentUser.credits - creditsToMaintain - (routeFuel * 2)) > goodToBuy.lowPrice) {
             let quantityToBuy = Math.floor((currentShip.ship.spaceAvailable - routeFuel) / goodToBuy.volume);
-            if (goodToBuy.volume === 0) {
-                quantityToBuy = Math.floor((currentUser.credits - 3000) / goodToBuy.lowPrice);
-            }
-            if ((quantityToBuy * (goodToBuy.lowPrice)) >= currentUser.credits) {
-                quantityToBuy = Math.floor((currentUser.credits - 3000) / goodToBuy.lowPrice);
-            }
+
             if (quantityToBuy >= goodMarketData.quantityAvailable) {
                 quantityToBuy = goodMarketData.quantityAvailable - 1;
             }
+            if ((quantityToBuy * goodToBuy.lowPrice) >= currentUser.credits) {
+                return;
+            }
+            
             while (quantityToBuy > 0) {
                 currentShip.ship.spaceAvailable -= quantityToBuy * goodToBuy.volume;
                 try {
