@@ -1,30 +1,8 @@
 import * as _ from 'lodash';
-import { update } from 'lodash';
 import { SpaceTraders } from 'spacetraders-sdk';
 import { Cargo, Marketplace, YourShip, LocationsResponse, MarketplaceResponse, AccountResponse, User, SellResponse, PurchaseResponse, Ship, Location } from 'spacetraders-sdk/dist/types';
 import { generateDisplay, log } from './monitor/monitor';
-
-export interface LoadedShip {
-    ship: YourShip,
-    cargoCost?: number,
-    lastLocation?: string,
-}
-
-export interface Goods {
-    symbol: string,
-    highPrice: number,
-    lowPrice: number,
-    highLoc: string,
-    lowLoc: string,
-    volume: number,
-    cdv: number,
-}
-
-export interface PurchaseGoods {
-    good: Marketplace,
-    gainPerQty: number,
-    fuelToMarket: number,
-}
+import { LoadedShip, Goods } from './types';
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 const spaceTraders = new SpaceTraders();
@@ -34,7 +12,6 @@ let currentShips: LoadedShip[] = [];
 let currentShip: LoadedShip;
 let marketGoods: Map<string, Goods[]> = new Map();
 let currentUser: User;
-
 const shipsToBuy: Map<string, any> = new Map();
 
 let locationMap: Map<string, Location[]> = new Map();
@@ -44,7 +21,7 @@ const knownSystems = ['OE', 'XV'];
 async function main() {
     knownSystems.forEach(async (system) => {
         const locations = (await spaceTraders.listLocations(system)).locations;
-        locationMap.set(system, locations);
+        locationMap.set(system, locations.filter((loc) => loc.type !== 'WORMHOLE'));
         marketGoods.set(system, []);
         shipsToBuy.set(system, {
             Gravager: {
@@ -72,25 +49,38 @@ async function main() {
                 "MK-III": 15,
             }
         });
-
     });
     while(true) {
         try {
             await spaceTraders.getAccount().then((d) => { 
                 currentUser = d.user;
-                console.log(currentUser.credits);
+            });
+            await spaceTraders.getShips().then(async (d) => {
                 if(_.isEmpty(currentShips)) {
-                    for (const ship of d.user.ships) {
+                    for (const ship of d.ships) {
                         let addShip: LoadedShip = {ship, cargoCost: 0};
+                        if (ship.location) {
+                            addShip.system = ship.location.substring(0,2);
+                        } else if(ship.flightPlanId){
+                            const flight = await spaceTraders.getFlightPlan(ship.flightPlanId);
+                            addShip.system = flight.flightPlan.destination.substring(0,2);
+                        }
                         currentShips.push(addShip);
                     }
                 } else {
-                    for (const ship of d.user.ships) {
+                    for (const ship of d.ships) {
                         let updateShip = currentShips.find((cship) => { return cship.ship.id === ship.id});
+                        let system: string;
+                        if (ship.location) {
+                            system = ship.location.substring(0,2);
+                        } else {
+                            const flight = await spaceTraders.getFlightPlan(ship.flightPlanId);
+                            system = flight.flightPlan.destination.substring(0,2);
+                        }
                         if (updateShip) {
                             updateShip.ship = ship;
                         } else {
-                            currentShips.push({ ship, cargoCost: 0, lastLocation: '' });
+                            currentShips.push({ ship, cargoCost: 0, lastLocation: '', system: system });
                         }
                     }
                 }
@@ -129,7 +119,7 @@ async function doSomething() {
 async function sellGoods(stationMarket: Marketplace[]) {
     if (currentShip.ship.cargo.length > 0) {
         for (const item of currentShip.ship.cargo) {
-            if (item.good === "FUEL") {
+            if (item.good === "FUEL" && currentShip.ship.location !== 'XV-BN') {
                 try {
                     const order = await spaceTraders.sellGood(currentShip.ship.id, "FUEL", item.quantity);
                     currentUser.credits =+ order.order.total;
@@ -321,13 +311,14 @@ async function navigate() {
             }
         }
     }
-
-    try {
-        let tmp = await spaceTraders.purchaseGood(currentShip.ship.id, "FUEL", fuelNeeded);
-        currentUser.credits -= tmp.order.total;
-        currentShip.ship = tmp.ship;
-    } catch (e) {
-        console.log(e);
+    if (currentShip.ship.location !== 'XV-BN') {
+        try {
+            let tmp = await spaceTraders.purchaseGood(currentShip.ship.id, "FUEL", fuelNeeded);
+            currentUser.credits -= tmp.order.total;
+            currentShip.ship = tmp.ship;
+        } catch (e) {
+            console.log(e);
+        }
     }
 
     try {
@@ -372,17 +363,20 @@ async function checkPurchaseNewShip() {
     });
     for (let ship of availShips.ships) {
         for (let purchaseLocation of ship.purchaseLocations) {
-            if (
-                (creditsToHold + purchaseLocation.price) <= currentUser.credits &&
-                shipsToBuy[ship.manufacturer][ship.class] > _.filter(currentShips, (currShip) => {
-                    return (currShip.ship.manufacturer === ship.manufacturer && currShip.ship.class === ship.class);
-                }).length
-            ) {
-                try {
-                    await spaceTraders.purchaseShip(purchaseLocation.location, ship.type);
-                    currentUser.credits -= purchaseLocation.price;
-                } catch (e) {
-                    console.log(e);
+            for (let [system, shipsInSystemToBuy] of shipsToBuy) {
+                if (
+                    (creditsToHold + purchaseLocation.price) <= currentUser.credits &&
+                    shipsInSystemToBuy[ship.manufacturer][ship.class] > _.filter(currentShips, (currShip) => {
+                        return (currShip.ship.manufacturer === ship.manufacturer && currShip.ship.class === ship.class && currShip.system === system);
+                    }).length &&
+                    purchaseLocation.location.substring(0,2) === system
+                ) {
+                    try {
+                        await spaceTraders.purchaseShip(purchaseLocation.location, ship.type);
+                        currentUser.credits -= purchaseLocation.price;
+                    } catch (e) {
+                        console.log(e);
+                    }
                 }
             }
         }
@@ -404,7 +398,7 @@ function calculateFuelNeededForGood(good?: string) {
             const systemGoods = marketGoods.get(currentShip.ship.location.substring(0,2));
             const goodMarketData = systemGoods.find((good) => { return good.symbol === goodToShip});
             if (goodMarketData && goodMarketData.highLoc) {
-                const targetDest = systemLocations.find((loc) => { return loc.symbol === goodMarketData.highLoc});
+                const targetDest = systemLocations.find((loc) => { return loc.symbol === goodMarketData.highLoc && loc.symbol});
                 const currentLoc = systemLocations.find((loc) => { return loc.symbol === currentShip.ship.location});
                 if (targetDest && currentLoc && (targetDest.symbol !== currentLoc.symbol)) {
                     const distanceToMarket = distance(targetDest, currentLoc);
@@ -437,7 +431,7 @@ function distance(loc1: Location, loc2: Location) {
 
 main();
 
-setInterval(() => {
-    generateDisplay(currentShips, currentUser);
-}, 5000).unref();
+// setInterval(() => {
+//     generateDisplay(currentShips, currentUser);
+// }, 5000).unref();
 
