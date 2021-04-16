@@ -8,13 +8,14 @@
 What this does (currently):
 
 * This is an infinite loop.
-* Polls your account, and grabs your first ship (You will need to have a ship, play with the APIs on your own to get to this point)
-* Currently, loops that ship between locations "OE-PM" and "OE-PM-TR" and buys then sells "SHIP_PARTS", which is a near guaranteed profit.
+* Polls your account, and grabs your ship list (You will need to have a ship, play with the APIs on your own to get to this point)
+* Once you have at least 1 ship, the script will move the ship from location to location, looking for the best trade good values.  If it cant find any, it will move on.
+* Has a data object `shipToBuy` near the top.  Once a certain threshold of credits is accrued, this will automatically buy a new ship, of the corresponding type, up to the set limit.  
 
 TODO:
-* Smarten up the loop, calculate profit gained.
-* Add sequential looping for multiple ships
-* Dynamic trade routes?
+* Smarten up the loop, calculate profit gained - Partially DONE
+* Add sequential looping for multiple ships - DONE
+* Dynamic trade routes - DONE
 
 Things to keep in mind:
 * Game is an MMO, markets are affected by all those playing
