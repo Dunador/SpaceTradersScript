@@ -7,7 +7,7 @@ import { LoadedShip, Goods } from './types';
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 const spaceTraders = new SpaceTraders();
 
-spaceTraders.init("Dunador", "a87a8989-e1ca-4d05-9d63-c8705710b1c8");
+spaceTraders.init("Dunador", "46bb99f8-afe2-47ed-9f17-623bd9995639");
 let currentShips: LoadedShip[] = [];
 let currentShip: LoadedShip;
 let bestRoutesPerSystem: Map<string, Goods[]> = new Map();
