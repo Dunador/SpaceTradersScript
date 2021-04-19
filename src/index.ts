@@ -250,6 +250,7 @@ function calculateBestRoutes() {
     for (const [system, markets] of universeMarkets) {
         let priceMap: Goods[] = [];
         for (const market of markets) {
+            console.log(market);
             for (const goods of market.marketplace) {
                 if (goods.symbol !== 'FUEL') {
                     let item = priceMap.find(good => good.symbol === goods.symbol);
@@ -261,17 +262,17 @@ function calculateBestRoutes() {
                         const highToCurrDist = distance(highMarket, market);
 
                         const currentCDV = item.cdv;
-                        const newLowCDV = (item.highPrice - (goods as any)['purchasePricePerUnit']) / highToCurrDist / goods.volumePerUnit;
-                        const newHighCDV = ((goods as any)['sellPricePerUnit'] - item.lowPrice) / lowToCurrDist / goods.volumePerUnit;  
+                        const newLowCDV = (item.highPrice - goods.purchasePricePerUnit) / highToCurrDist / goods.volumePerUnit;
+                        const newHighCDV = (goods.sellPricePerUnit - item.lowPrice) / lowToCurrDist / goods.volumePerUnit;  
                         
                         if (newLowCDV > currentCDV && newLowCDV !== Infinity) {
-                            item.lowPrice = (goods as any)['purchasePricePerUnit'];
+                            item.lowPrice = goods.purchasePricePerUnit;
                             item.lowLoc = market.symbol;
                             item.cdv = newLowCDV;
                         }
 
                         if (newHighCDV > currentCDV) {
-                            item.highPrice = (goods as any)['sellPricePerUnit'];
+                            item.highPrice = goods.sellPricePerUnit;
                             item.highLoc = market.symbol;
                             item.cdv = newHighCDV;
                         }
@@ -281,8 +282,8 @@ function calculateBestRoutes() {
                     } else {
                         priceMap.push({
                             symbol: goods.symbol, 
-                            lowPrice: (goods as any)['purchasePricePerUnit'],
-                            highPrice: (goods as any)['sellPricePerUnit'],
+                            lowPrice: goods.purchasePricePerUnit,
+                            highPrice: goods.sellPricePerUnit,
                             lowLoc: market.symbol,
                             highLoc: market.symbol,
                             volume: goods.volumePerUnit,
@@ -495,7 +496,7 @@ function distance(loc1: Location, loc2: Location) {
 
 main();
 
-setInterval(() => {
-    generateDisplay(currentShips, currentUser);
-}, 5000).unref();
+// setInterval(() => {
+//     generateDisplay(currentShips, currentUser);
+// }, 5000).unref();
 
