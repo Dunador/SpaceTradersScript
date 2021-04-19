@@ -1,7 +1,7 @@
 import * as blessed from 'blessed';
 import * as _ from 'lodash';
 import { User } from 'spacetraders-sdk/dist/types';
-import { LoadedShip } from '..';
+import { LoadedShip } from '../types';
 
 let screen = blessed.screen({
   smartCSR: true,
