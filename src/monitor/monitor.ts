@@ -1,7 +1,7 @@
 import * as blessed from 'blessed';
 import * as _ from 'lodash';
 import { User } from 'spacetraders-sdk/dist/types';
-import { LoadedShip } from '..';
+import { Goods, LoadedShip } from '../types';
 
 let screen = blessed.screen({
   smartCSR: true,
@@ -9,31 +9,31 @@ let screen = blessed.screen({
 
 screen.title = 'Space Trader Monitor';
 
-// let consoleBox = blessed.box({
-//   top: 0,
-//   left: 0,
-//   padding: 2,
-//   height: '50%',
-//   width: '100%',
-//   keys: true,
-//   mouse: true,
-//   alwaysScroll: true,
-//   scrollable: true,
-//   border: 'line',
-//   scrollbar: {
-//     style: {
-//       ch: ' ',
-//       bg: 'red'
-//     }
-//   }
-// });
+let marketDataTable = blessed.listtable({
+  top: 0,
+  left: 0,
+  padding: 0,
+  height: '50%',
+  width: '100%',
+  keys: true,
+  mouse: true,
+  alwaysScroll: true,
+  scrollable: true,
+  border: 'line',
+  scrollbar: {
+    style: {
+      ch: ' ',
+      bg: 'red'
+    }
+  }
+});
 
-// screen.append(consoleBox);
+screen.append(marketDataTable);
 
 let table = blessed.listtable({
   bottom: 0,
   left: 0,
-  height: '100%',
+  height: '50%',
   width: '100%',
   align: 'center',
   border: 'line',
@@ -49,17 +49,41 @@ let table = blessed.listtable({
 });
 
 screen.append(table);
+table.focus();
 
 screen.key(['escape', 'q', 'C-c'], function(ch, key) {
   return process.exit(0);
 });
 
-export function generateDisplay(ships: LoadedShip[], user: User) {
+marketDataTable.key(['tab'], (ch, key) => {
+  table.focus();
+});
+
+table.key(['tab'], (ch, key) => {
+  marketDataTable.focus();
+})
+
+export function generateDisplay(ships: LoadedShip[], user: User, marketGoods: Map<string, Goods[]>) {
 
   let data = [['Credits ' + user.credits, '', '', '', ''], ['Ship ID', 'Ship Type', 'Location', 'Cargo Space', 'Cargo Items']];
   data = data.concat(generateData(ships));
   table.setData(data);
-  table.focus();
+
+  let marketData = [['Item', 'High Price', 'High Loc', 'Low Price', 'Low Loc', 'CDV']];
+  marketData.push([]);
+  marketData.push(['OE System']);
+  marketData = marketData.concat(_.orderBy(marketGoods.get('OE'), ['cdv'], ['desc']).map((item) => {
+    return [item.symbol, item.highPrice.toString(), item.highLoc, item.lowPrice.toString(), item.lowLoc, item.cdv.toString()];
+  }));
+  marketData.push([]);
+  marketData.push(['XV System']);
+  marketData = marketData.concat(_.orderBy(marketGoods.get('XV'), ['cdv'], ['desc']).map((item) => {
+    return [item.symbol, item.highPrice.toString(), item.highLoc, item.lowPrice.toString(), item.lowLoc, item.cdv.toString()];
+  }))
+
+
+  marketDataTable.setData(marketData);
+
   screen.render();
 }
 
