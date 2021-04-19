@@ -165,8 +165,12 @@ async function updateMarketData(location: string) {
         const systemMarkets = universeMarkets.get(location.substring(0,2));
 
         let locationMarket = systemMarkets.find((market) => market.symbol === location);
-        if (locationMarket)
+        if (locationMarket) {
+            const updateIndex = systemMarkets.indexOf(locationMarket);
             locationMarket = marketData.location;
+            systemMarkets[updateIndex] = locationMarket;
+            universeMarkets.set(location.substring(0,2), systemMarkets);
+        }
         else
             systemMarkets.push(marketData.location);
         calculateBestRoutes();
@@ -250,10 +254,10 @@ function calculateBestRoutes() {
     for (const [system, markets] of universeMarkets) {
         let priceMap: Goods[] = [];
         for (const market of markets) {
-            console.log(market);
             for (const goods of market.marketplace) {
                 if (goods.symbol !== 'FUEL') {
                     let item = priceMap.find(good => good.symbol === goods.symbol);
+                    const oldItem = _.cloneDeep(item);
                     let itemIndex = priceMap.indexOf(item);
                     if (item) {
                         const lowMarket = markets.find(mar => mar.symbol === item.lowLoc);
@@ -268,17 +272,25 @@ function calculateBestRoutes() {
                         if (newLowCDV > currentCDV && newLowCDV !== Infinity) {
                             item.lowPrice = goods.purchasePricePerUnit;
                             item.lowLoc = market.symbol;
-                            item.cdv = newLowCDV;
                         }
 
-                        if (newHighCDV > currentCDV) {
+                        if (newHighCDV > currentCDV && newHighCDV !== Infinity) {
                             item.highPrice = goods.sellPricePerUnit;
                             item.highLoc = market.symbol;
-                            item.cdv = newHighCDV;
                         }
 
-                    priceMap[itemIndex] = item;
-
+                        if (item.lowLoc === item.highLoc) {
+                            if (newLowCDV >= newHighCDV) {
+                                item.highPrice = oldItem.highPrice;
+                                item.highLoc = oldItem.highLoc;
+                            } else {
+                                item.lowPrice = oldItem.lowPrice;
+                                item.lowLoc = oldItem.lowLoc;
+                            }
+                        }
+                        const newDist = distance(markets.find(loc => loc.symbol === item.highLoc), markets.find(loc => loc.symbol === item.lowLoc));
+                        item.cdv = (item.highPrice - item.lowPrice) / (newDist === 0 ? 1 : newDist) / item.volume;
+                        priceMap[itemIndex] = item;
                     } else {
                         priceMap.push({
                             symbol: goods.symbol, 
@@ -303,7 +315,7 @@ async function buyGoods(stationMarket: Marketplace[]) {
     let goodMarketData;
     const systemGoods = bestRoutesPerSystem.get(currentShip.ship.location.substring(0,2));
     let orderedMarket = _.orderBy(systemGoods, ['cdv'], ['desc']);
-    const creditsToMaintain = 20000;
+    const creditsToMaintain = currentShips.filter(ship => ship.ship.manufacturer !== 'Jackshaw').length * 1000;
 
     if (orderedMarket.length > 0 && currentShip.ship.location === orderedMarket[0].lowLoc) {
         goodToBuy = orderedMarket[0];
@@ -496,7 +508,7 @@ function distance(loc1: Location, loc2: Location) {
 
 main();
 
-// setInterval(() => {
-//     generateDisplay(currentShips, currentUser);
-// }, 5000).unref();
+setInterval(() => {
+    generateDisplay(currentShips, currentUser, bestRoutesPerSystem);
+}, 5000).unref();
 
