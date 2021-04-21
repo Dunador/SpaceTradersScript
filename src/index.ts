@@ -251,7 +251,7 @@ async function updateMarketData(location: string) {
 
 function calculateBestRoutes() {
     for (const [system, markets] of universeMarkets) {
-        let priceMap: Goods[] = bestRoutesPerSystem.get(system) || [];
+        let priceMap: Goods[] = [];
         for (const market of markets) {
             for (const goods of market.marketplace) {
                 if (goods.symbol !== 'FUEL') {
@@ -268,12 +268,12 @@ function calculateBestRoutes() {
                         const newLowCDV = (item.highPrice - goods.purchasePricePerUnit) / highToCurrDist / goods.volumePerUnit;
                         const newHighCDV = (goods.sellPricePerUnit - item.lowPrice) / lowToCurrDist / goods.volumePerUnit;  
                         
-                        if (newLowCDV > currentCDV && newLowCDV !== Infinity) {
+                        if ((newLowCDV > currentCDV && newLowCDV !== Infinity) || item.lowLoc === market.symbol) {
                             item.lowPrice = goods.purchasePricePerUnit;
                             item.lowLoc = market.symbol;
                         }
 
-                        if (newHighCDV > currentCDV && newHighCDV !== Infinity) {
+                        if ((newHighCDV > currentCDV && newHighCDV !== Infinity) || item.highLoc === market.symbol) {
                             item.highPrice = goods.sellPricePerUnit;
                             item.highLoc = market.symbol;
                         }

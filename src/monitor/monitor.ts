@@ -65,7 +65,7 @@ table.key(['tab'], (ch, key) => {
 
 export function generateDisplay(ships: LoadedShip[], user: User, marketGoods: Map<string, Goods[]>) {
 
-  let data = [['Credits ' + user.credits, '', '', '', ''], ['Ship ID', 'Ship Type', 'Location', 'Cargo Space', 'Cargo Items']];
+  let data = [['Credits ' + user.credits, '', '', '', 'Ship Count: '+ships.length], ['Ship ID', 'Ship Type', 'Location', 'Cargo Space', 'Cargo Items']];
   data = data.concat(generateData(ships));
   table.setData(data);
 
