@@ -1,4 +1,5 @@
 import * as _ from 'lodash';
+import { groupBy } from 'lodash';
 import { SpaceTraders } from 'spacetraders-sdk';
 import { Cargo, Marketplace, YourShip, LocationsResponse, MarketplaceResponse, AccountResponse, User, SellResponse, PurchaseResponse, Ship, Location, LocationWithMarketplace } from 'spacetraders-sdk/dist/types';
 import { generateDisplay, log } from './monitor/monitor';
@@ -73,11 +74,13 @@ async function main() {
                     for (const ship of d.ships) {
                         let updateShip = currentShips.find((cship) => { return cship.ship.id === ship.id});
                         let system: string;
-                        if (ship.location) {
-                            system = ship.location.substring(0,2);
-                        } else {
-                            const flight = await spaceTraders.getFlightPlan(ship.flightPlanId);
-                            system = flight.flightPlan.destination.substring(0,2);
+                        if (updateShip && !updateShip.system) {
+                            if (ship.location) {
+                                updateShip.system = ship.location.substring(0,2);
+                            } else {
+                                const flight = await spaceTraders.getFlightPlan(ship.flightPlanId);
+                                updateShip.system = flight.flightPlan.destination.substring(0,2);
+                            }
                         }
                         if (updateShip) {
                             updateShip.ship = ship;
@@ -90,6 +93,7 @@ async function main() {
                 return d; 
             }, 
             (e) => {});
+            await updateMarketData();
         } catch (e) {
             console.log(e);
         }
@@ -109,7 +113,7 @@ async function main() {
 
 async function doSomething() {
     if (currentShip.ship.location && (currentShip.ship.location !== 'OE-XV-91-2' && currentShip.ship.location !== 'XV-OE-2-91')) {
-        const stationMarket = await updateMarketData(currentShip.ship.location);
+        const stationMarket = universeMarkets.get(currentShip.system).find(x => x.symbol === currentShip.ship.location).marketplace;
          if (currentShip.ship.manufacturer !== "Jackshaw") {
             await sellGoods(stationMarket);
             await buyGoods(stationMarket);
@@ -152,101 +156,43 @@ async function sellGoods(stationMarket: Marketplace[]) {
     }
 }
 
-async function updateMarketData(location: string) {
-    let marketData;
-    try {
-        marketData = await spaceTraders.getMarketplace(location);
-    } catch (e) {
-        console.log(e);
+async function updateMarketData() {
+    for (let [system, markets] of universeMarkets) {
+        await Promise.all(
+            [...new Set(currentShips.filter(ship => ship.system === system).map(ship => ship.ship.location))]
+            .map((loc) => { return spaceTraders.getMarketplace(loc) })
+        ).then((data) => {
+            const marketData = data.map(x => x.location);
+            universeMarkets.set(system, marketData);
+        });
     }
 
-    if (marketData) {  
+    calculateBestRoutes();
 
-        const systemMarkets = universeMarkets.get(location.substring(0,2));
+    // let marketData;
+    // try {
+    //     marketData = await spaceTraders.getMarketplace(location);
+    // } catch (e) {
+    //     console.log(e);
+    // }
 
-        let locationMarket = systemMarkets.find((market) => market.symbol === location);
-        if (locationMarket) {
-            const updateIndex = systemMarkets.indexOf(locationMarket);
-            locationMarket = marketData.location;
-            systemMarkets[updateIndex] = locationMarket;
-            universeMarkets.set(location.substring(0,2), systemMarkets);
-        }
-        else
-            systemMarkets.push(marketData.location);
-        calculateBestRoutes();
-        return marketData.location.marketplace;
+    // if (marketData) {  
+    //     const systemMarkets = universeMarkets.get(location.substring(0,2));
+    //     let locationMarket = systemMarkets.find((market) => market.symbol === location);
+    //     if (locationMarket) {
+    //         const updateIndex = systemMarkets.indexOf(locationMarket);
+    //         locationMarket = marketData.location;
+    //         systemMarkets[updateIndex] = locationMarket;
+    //         universeMarkets.set(location.substring(0,2), systemMarkets);
+    //     }
+    //     else
+    //         systemMarkets.push(marketData.location);
+    //     calculateBestRoutes();
+    //     return marketData.location.marketplace;
 
-        // for (const item of marketData.location.marketplace) {
-        //     if (item.symbol !== "FUEL") {
-        //         const systemGoods = marketGoods.get(currentShip.ship.location.substring(0,2));
-        //         let updateItem = systemGoods.find((good) => { return good.symbol === item.symbol});
-        //         const updateIndex = systemGoods.indexOf(updateItem);
-        //         if (updateItem) {
-        //             const systemLocs = locationMap.get(location.substring(0,2));
-        //             const lowLoc = systemLocs.find((loc) => { return loc.symbol === updateItem?.lowLoc });
-        //             const highLoc = systemLocs.find((loc) => { return loc.symbol === updateItem?.highLoc });
-        //             const currLoc = systemLocs.find((loc) => { return loc.symbol === location });
-        //             const lowToCurrDist = distance(lowLoc, currLoc) + 1;
-        //             const highToCurrDist = distance(highLoc, currLoc) +1;
-        //             const currentDist = distance(lowLoc, highLoc) + 1;
-
-        //             // Price drift, but not if only 1 location scouted for good (prices will always be wonky for only 1 location)
-        //             if (updateItem.lowPrice > updateItem.highPrice && updateItem.lowLoc !== updateItem.highLoc) {
-        //                 const tmp = _.cloneDeep(updateItem);
-        //                 updateItem.highPrice = tmp.lowPrice;
-        //                 updateItem.highLoc = tmp.lowLoc;
-        //                 updateItem.lowPrice = tmp.highPrice;
-        //                 updateItem.lowLoc = tmp.highLoc;
-        //             }
-                    
-        //             let newUpdateItem = _.cloneDeep(updateItem);
-
-        //             const currentCDV = ((updateItem.highPrice - updateItem.lowPrice) / (currentDist === 0 ? 1 : currentDist)) / updateItem.volume;
-        //             const newLowCDV = ((updateItem.highPrice - (item.pricePerUnit + (item as any)['spread'])) / (highToCurrDist === 0 ? 1 : highToCurrDist)) / updateItem.volume;
-        //             const newHighCDV = (((item.pricePerUnit - (item as any)['spread']) - updateItem.lowPrice) / (lowToCurrDist === 0 ? 1 : lowToCurrDist)) / updateItem.volume;    
-                    
-        //             if (newLowCDV > currentCDV || updateItem.lowLoc === currentShip.ship.location) {
-        //                 newUpdateItem.lowLoc = currLoc.symbol;
-        //                 newUpdateItem.lowPrice = item.pricePerUnit + (item as any)['spread'];
-        //             }
-
-        //             if (newHighCDV > currentCDV || updateItem.highLoc === currentShip.ship.location) {
-        //                 newUpdateItem.highLoc = currLoc.symbol;
-        //                 newUpdateItem.highPrice = item.pricePerUnit  - (item as any)['spread'];
-        //             }
-
-        //             if (newUpdateItem.lowLoc === newUpdateItem.highLoc) {
-        //                 if (newLowCDV >= newHighCDV) {
-        //                     newUpdateItem.highPrice = updateItem.highPrice;
-        //                     newUpdateItem.highLoc = updateItem.highLoc;
-        //                 } else {
-        //                     newUpdateItem.lowPrice = updateItem.lowPrice;
-        //                     newUpdateItem.lowLoc = updateItem.lowLoc;
-        //                 }
-        //             }
-
-        //             const newDist = distance(systemLocs.find(loc => loc.symbol === newUpdateItem.highLoc), systemLocs.find(loc => loc.symbol === newUpdateItem.lowLoc));
-        //             newUpdateItem.cdv = (newUpdateItem.highPrice - newUpdateItem.lowPrice) / (newDist === 0 ? 1 : newDist) / newUpdateItem.volume;
-                    
-        //             systemGoods[updateIndex] = newUpdateItem;
-        //         } else {
-        //             systemGoods.push({
-        //             symbol: item.symbol,
-        //             lowPrice: item.pricePerUnit + (item as any)['spread'],
-        //             lowLoc: location,
-        //             highPrice: item.pricePerUnit - (item as any)['spread'],
-        //             highLoc: location, 
-        //             volume: item.volumePerUnit,
-        //             cdv: 0,
-        //             });
-        //         }
-        //     }
-        // }
-        // // console.log(marketGoods);
-        // return marketData.location.marketplace;
-    } else {
-        return [];
-    }
+    // } else {
+    //     return [];
+    // }
 }
 
 function calculateBestRoutes() {
@@ -368,13 +314,13 @@ async function navigate() {
         let goodToSellData: Goods = systemGoods.find((marketGood) => { return marketGood.symbol === goodToSell.good });
         while (fuelNeeded > currentShip.ship.spaceAvailable) {
             try {
-                const o = await spaceTraders.sellGood(currentShip.ship.id, goodToSell.good, 1);
+                const o = await spaceTraders.sellGood(currentShip.ship.id, goodToSell.good, 10);
                 currentUser.credits += o.order.total;
                 currentShip.ship = o.ship;
             } catch (e) {
                 try {
-                    await spaceTraders.jettisonGoods(currentShip.ship.id, goodToSell.good, 1);
-                    currentShip.ship.spaceAvailable += goodToSellData.volume;
+                    await spaceTraders.jettisonGoods(currentShip.ship.id, goodToSell.good, 10);
+                    currentShip.ship.spaceAvailable += goodToSellData.volume * 10;
                 } catch (e) {
                     goodToSell = currentShip.ship.cargo.find((good) => { return good.good !== "FUEL" && good.good !== goodToSell.good});
                     if (goodToSell) {
@@ -451,6 +397,8 @@ async function checkPurchaseNewShip() {
                     try {
                         await spaceTraders.purchaseShip(purchaseLocation.location, ship.type);
                         currentUser.credits -= purchaseLocation.price;
+                        // Only buy 1 ship per loop, to prevent massive decrease in credits.
+                        return;
                     } catch (e) {
                         console.log(e);
                     }
