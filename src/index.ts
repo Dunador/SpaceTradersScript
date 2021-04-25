@@ -73,19 +73,21 @@ async function main() {
                 } else {
                     for (const ship of d.ships) {
                         let updateShip = currentShips.find((cship) => { return cship.ship.id === ship.id});
-                        let system: string;
-                        if (updateShip && !updateShip.system) {
+                        if (updateShip) {
+                            let system: string;
                             if (ship.location) {
-                                updateShip.system = ship.location.substring(0,2);
+                                system = ship.location.substring(0,2);
                             } else {
                                 const flight = await spaceTraders.getFlightPlan(ship.flightPlanId);
-                                updateShip.system = flight.flightPlan.destination.substring(0,2);
+                                system = flight.flightPlan.destination.substring(0,2);
                             }
-                        }
-                        if (updateShip) {
+                        
+                            if(system)
+                                updateShip.system = system;
                             updateShip.ship = ship;
                         } else {
-                            currentShips.push({ ship, cargoCost: 0, lastLocation: '', system: system });
+                            let system = ship.location.substring(0,2);
+                            currentShips.push({ ship, cargoCost: 0, lastLocation: '', system });
                         }
                     }
                 }
@@ -159,7 +161,7 @@ async function sellGoods(stationMarket: Marketplace[]) {
 async function updateMarketData() {
     for (let [system, markets] of universeMarkets) {
         await Promise.all(
-            [...new Set(currentShips.filter(ship => ship.system === system).map(ship => ship.ship.location))]
+            [...new Set(currentShips.filter(ship => ship.system === system && ship.ship.location !== undefined).map(ship => ship.ship.location))]
             .map((loc) => { return spaceTraders.getMarketplace(loc) })
         ).then((data) => {
             let marketData = data.map(x => x.location);
@@ -274,10 +276,31 @@ async function buyGoods(stationMarket: Marketplace[]) {
     } else if ((goodToBuy = orderedMarket.find(good => good.lowLoc === currentShip.ship.location && good.highLoc === orderedMarket[0].lowLoc && good.cdv > 0)) !== undefined) {
         goodMarketData = stationMarket.find(good => good.symbol === goodToBuy.symbol);
     } else {
-        goodToBuy = orderedMarket.find(good => good.lowLoc === currentShip.ship.location && good.cdv > 0);
-        if (goodToBuy) {
-            goodMarketData = stationMarket.find(good => good.symbol === goodToBuy.symbol);
+        const currMarket = universeMarkets.get(currentShip.system).find(mar => mar.symbol === currentShip.ship.location);
+        const targetMarket = universeMarkets.get(currentShip.system).find(mar => mar.symbol === orderedMarket[0].lowLoc);
+        let bestGood: Goods, bestGoodData: Marketplace, bestGoodCDV = -100;
+        for (const item of currMarket.marketplace) {
+            let targetItem = targetMarket.marketplace.find(x => item.symbol === x.symbol);
+            if (targetItem) {
+                let itemCDV = (targetItem.sellPricePerUnit - item.purchasePricePerUnit) / item.volumePerUnit;
+                if (itemCDV > bestGoodCDV) {
+                    bestGoodData = item;
+                    bestGood = {
+                        lowLoc: currMarket.symbol,
+                        highLoc: targetMarket.symbol,
+                        lowPrice: item.purchasePricePerUnit,
+                        highPrice: targetItem.sellPricePerUnit,
+                        volume: item.volumePerUnit,
+                        cdv: itemCDV,
+                        symbol: item.symbol,
+                    };
+                    bestGoodCDV = itemCDV;
+                } 
+            }
         }
+        goodToBuy = bestGood;
+        goodMarketData = bestGoodData;
+
     }
     if (goodToBuy && goodMarketData) {
         const routeFuel = calculateFuelNeededForGood(goodToBuy.symbol).fuelNeeded;
