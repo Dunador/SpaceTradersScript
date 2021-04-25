@@ -8,7 +8,7 @@ import { LoadedShip, Goods } from './types';
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 const spaceTraders = new SpaceTraders();
 
-spaceTraders.init("Dunador", "46bb99f8-afe2-47ed-9f17-623bd9995639");
+spaceTraders.init("Dunador", "69de7c70-4e32-43b5-bac0-98fc5ad7e920");
 let currentShips: LoadedShip[] = [];
 let currentShip: LoadedShip;
 let bestRoutesPerSystem: Map<string, Goods[]> = new Map();
@@ -162,7 +162,12 @@ async function updateMarketData() {
             [...new Set(currentShips.filter(ship => ship.system === system).map(ship => ship.ship.location))]
             .map((loc) => { return spaceTraders.getMarketplace(loc) })
         ).then((data) => {
-            const marketData = data.map(x => x.location);
+            let marketData = data.map(x => x.location);
+            for (let market of markets) {
+                if (!marketData.find(mar => mar.symbol === market.symbol)) {
+                    marketData.push(market);
+                }
+            }
             universeMarkets.set(system, marketData);
         });
     }
