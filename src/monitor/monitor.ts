@@ -2,6 +2,12 @@ import * as blessed from 'blessed';
 import * as _ from 'lodash';
 import { User } from 'spacetraders-sdk/dist/types';
 import { Goods, LoadedShip } from '../types';
+import * as globals from '../utils/globals';
+
+const currencyFormatter = Intl.NumberFormat('en-us', {
+  maximumFractionDigits: 0,
+  minimumFractionDigits: 0,
+});
 
 let screen = blessed.screen({
   smartCSR: true,
@@ -63,9 +69,9 @@ table.key(['tab'], (ch, key) => {
   marketDataTable.focus();
 })
 
-export function generateDisplay(ships: LoadedShip[], user: User, marketGoods: Map<string, Goods[]>) {
+export function generateDisplay(ships: LoadedShip[], marketGoods: Map<string, Goods[]>) {
 
-  let data = [['Credits ' + user.credits, '', '', '', 'Ship Count: '+ships.length], ['Ship ID', 'Ship Type', 'Location', 'Cargo Space', 'Cargo Items']];
+  let data = [['Credits Ƶ' + currencyFormatter.format(globals.getCredits()), '', '', '', 'Ship Count: '+ships.length], ['Ship ID', 'Ship Type', 'Location', 'Cargo Space', 'Cargo Items']];
   data = data.concat(generateData(ships));
   table.setData(data);
 
