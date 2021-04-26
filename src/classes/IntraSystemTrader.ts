@@ -96,14 +96,40 @@ export class IntraSystemTrader implements LoadedShip {
         (good) => good.symbol === goodToBuy.symbol
       );
     } else {
-      goodToBuy = orderedMarket.find(
-        (good) => good.lowLoc === this.ship.location && good.cdv > 0
-      );
-      if (goodToBuy) {
-        goodMarketData = stationMarket.find(
-          (good) => good.symbol === goodToBuy.symbol
+      const currMarket = globals.universeMarkets
+        .get(this.system)
+        .find((mar) => mar.symbol === this.ship.location);
+      const targetMarket = globals.universeMarkets
+        .get(this.system)
+        .find((mar) => mar.symbol === orderedMarket[0].lowLoc);
+      let bestGood: Goods,
+        bestGoodData: Marketplace,
+        bestGoodCDV = -100;
+      for (const item of currMarket.marketplace) {
+        let targetItem = targetMarket.marketplace.find(
+          (x) => item.symbol === x.symbol
         );
+        if (targetItem) {
+          let itemCDV =
+            (targetItem.sellPricePerUnit - item.purchasePricePerUnit) /
+            item.volumePerUnit;
+          if (itemCDV > bestGoodCDV) {
+            bestGoodData = item;
+            bestGood = {
+              lowLoc: currMarket.symbol,
+              highLoc: targetMarket.symbol,
+              lowPrice: item.purchasePricePerUnit,
+              highPrice: targetItem.sellPricePerUnit,
+              volume: item.volumePerUnit,
+              cdv: itemCDV,
+              symbol: item.symbol,
+            };
+            bestGoodCDV = itemCDV;
+          }
+        }
       }
+      goodToBuy = bestGood;
+      goodMarketData = bestGoodData;
     }
     if (goodToBuy && goodMarketData) {
       const routeFuel = MarketUtil.calculateFuelNeededForGood(
