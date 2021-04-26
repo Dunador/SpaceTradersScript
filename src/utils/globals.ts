@@ -8,7 +8,7 @@ export let bestRoutesPerSystem: Map<string, Goods[]> = new Map();
 export let locationMap: Map<string, Location[]> = new Map();
 export let universeMarkets: Map<string, LocationWithMarketplace[]> = new Map();
 export const spaceTraders: SpaceTraders = new SpaceTraders();
-export const knownSystems = ['OE', 'XV'];
+export const knownSystems = ["OE", "XV"];
 
 export function getCredits(): number {
   return credits;
