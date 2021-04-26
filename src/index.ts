@@ -48,7 +48,7 @@ async function main() {
         "MK-III": 30,
       },
       Jackshaw: {
-        "MK-I": 10,
+        "MK-I": 0,
         "MK-II": 0,
         "MK-III": 0,
       },
