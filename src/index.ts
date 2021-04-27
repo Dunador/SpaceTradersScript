@@ -68,10 +68,8 @@ async function main() {
       },
     });
   });
-  try {
-
-
-    while (true) {
+  while (true) {
+    try {
       try {
         await globals.spaceTraders.getAccount().then((d) => {
           globals.setCredits(d.user.credits);
@@ -137,9 +135,9 @@ async function main() {
         await cargoShip.handleTrade();
       }
       await checkPurchaseNewShip();
+    } catch (e) {
+      console.log(e);
     }
-  } catch (e) {
-    console.log(e);
   }
 }
 
