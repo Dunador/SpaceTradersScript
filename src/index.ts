@@ -68,73 +68,78 @@ async function main() {
       },
     });
   });
-  while (true) {
-    try {
-      await globals.spaceTraders.getAccount().then((d) => {
-        globals.setCredits(d.user.credits);
-      });
-      await globals.spaceTraders.getShips().then(
-        async (d) => {
-          if (_.isEmpty(intraTraders)) {
-            for (const ship of d.ships) {
-              let trader = new IntraSystemTrader(ship);
-              if (ship.location) {
-                trader.system = ship.location.substring(0, 2);
-              } else {
-                trader.system = await (
-                  await globals.spaceTraders.getFlightPlan(ship.flightPlanId)
-                ).flightPlan.destination.substring(0, 2);
-              }
-              if (ship.manufacturer === "Jackshaw")
-                locationScouts.push(new LocationScout(ship, trader.system));
-              else intraTraders.push(trader);
-            }
-          } else {
-            for (const ship of d.ships) {
-              let updateShip;
-              if (ship.manufacturer === "Jackshaw")
-                updateShip = locationScouts.find((scout) => {
-                  return scout.ship.id === ship.id;
-                });
-              else
-                updateShip = intraTraders.find((cship) => {
-                  return cship.ship.id === ship.id;
-                });
-              let system: string;
-              if (ship.location) {
-                system = ship.location.substring(0, 2);
-              } else {
-                const flight = await globals.spaceTraders.getFlightPlan(
-                  ship.flightPlanId
-                );
-                system = flight.flightPlan.destination.substring(0, 2);
-              }
+  try {
 
-              if (updateShip) {
-                updateShip.system = system;
-                updateShip.ship = ship;
-              } else {
+
+    while (true) {
+      try {
+        await globals.spaceTraders.getAccount().then((d) => {
+          globals.setCredits(d.user.credits);
+        });
+        await globals.spaceTraders.getShips().then(
+          async (d) => {
+            if (_.isEmpty(intraTraders)) {
+              for (const ship of d.ships) {
+                let trader = new IntraSystemTrader(ship);
+                if (ship.location) {
+                  trader.system = ship.location.substring(0, 2);
+                } else {
+                  trader.system = await (
+                    await globals.spaceTraders.getFlightPlan(ship.flightPlanId)
+                  ).flightPlan.destination.substring(0, 2);
+                }
                 if (ship.manufacturer === "Jackshaw")
-                  locationScouts.push(new LocationScout(ship, system));
-                else intraTraders.push(new IntraSystemTrader(ship, system));
+                  locationScouts.push(new LocationScout(ship, trader.system));
+                else intraTraders.push(trader);
+              }
+            } else {
+              for (const ship of d.ships) {
+                let updateShip;
+                if (ship.manufacturer === "Jackshaw")
+                  updateShip = locationScouts.find((scout) => {
+                    return scout.ship.id === ship.id;
+                  });
+                else
+                  updateShip = intraTraders.find((cship) => {
+                    return cship.ship.id === ship.id;
+                  });
+                let system: string;
+                if (ship.location) {
+                  system = ship.location.substring(0, 2);
+                } else {
+                  const flight = await globals.spaceTraders.getFlightPlan(
+                    ship.flightPlanId
+                  );
+                  system = flight.flightPlan.destination.substring(0, 2);
+                }
+
+                if (updateShip) {
+                  updateShip.system = system;
+                  updateShip.ship = ship;
+                } else {
+                  if (ship.manufacturer === "Jackshaw")
+                    locationScouts.push(new LocationScout(ship, system));
+                  else intraTraders.push(new IntraSystemTrader(ship, system));
+                }
               }
             }
-          }
 
-          return d;
-        },
-        (e) => {}
-      );
-      await MarketUtil.updateMarketData(locationScouts);
-    } catch (e) {
-      console.log(e);
-    }
+            return d;
+          },
+          (e) => { }
+        );
+        await MarketUtil.updateMarketData(locationScouts);
+      } catch (e) {
+        console.log(e);
+      }
 
-    for (const cargoShip of intraTraders) {
-      await cargoShip.handleTrade();
+      for (const cargoShip of intraTraders) {
+        await cargoShip.handleTrade();
+      }
+      await checkPurchaseNewShip();
     }
-    await checkPurchaseNewShip();
-    await delay(1000);
+  } catch (e) {
+    console.log(e);
   }
 }
 
@@ -152,13 +157,13 @@ async function checkPurchaseNewShip() {
         if (
           creditsToHold + purchaseLocation.price <= globals.getCredits() &&
           shipsInSystemToBuy[ship.manufacturer][ship.class] >
-            _.filter(intraTraders, (currShip) => {
-              return (
-                currShip.ship.manufacturer === ship.manufacturer &&
-                currShip.ship.class === ship.class &&
-                currShip.system === system
-              );
-            }).length &&
+          _.filter(intraTraders, (currShip) => {
+            return (
+              currShip.ship.manufacturer === ship.manufacturer &&
+              currShip.ship.class === ship.class &&
+              currShip.system === system
+            );
+          }).length &&
           purchaseLocation.location.substring(0, 2) === system
         ) {
           try {
@@ -180,6 +185,6 @@ async function checkPurchaseNewShip() {
 
 main();
 
-setInterval(() => {
-  generateDisplay(intraTraders, globals.bestRoutesPerSystem);
-}, 5000).unref();
+// setInterval(() => {
+//   generateDisplay(intraTraders, globals.bestRoutesPerSystem);
+// }, 5000).unref();
