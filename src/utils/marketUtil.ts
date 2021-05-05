@@ -1,9 +1,10 @@
-import { Location, YourShip } from "spacetraders-sdk/dist/types";
+import { Location, LocationWithMarketplace, Marketplace, YourShip } from "spacetraders-sdk/dist/types";
 import * as globals from "./globals";
 import * as _ from "lodash";
 import { IntraSystemTrader } from "../classes/IntraSystemTrader";
 import { Goods } from "../types";
 import { LocationScout } from "../classes/LocationScout";
+import WebSocket from 'isomorphic-ws';
 
 const noFuelLocations = ["XV-BN"];
 
@@ -26,9 +27,12 @@ export class MarketUtil {
       if (good) {
         goodToShip = good;
       } else {
-        goodToShip = ship.cargo.find((good) => {
-          return good.good !== "FUEL";
-        })?.good;
+        if (ship.cargo.length > 1)
+          goodToShip = ship.cargo.find((good) => {
+            return good.good !== "FUEL";
+          })?.good;
+        else
+          goodToShip = ship.cargo[0].good;
       }
       if (goodToShip) {
         const systemGoods = globals.bestRoutesPerSystem.get(
@@ -116,109 +120,269 @@ export class MarketUtil {
     return Math.ceil(Math.sqrt(xdiff + ydiff));
   }
 
-  public static async updateMarketData(traders: LocationScout[]) {
+  public static async updateMarketData() {
     for (let [system, markets] of globals.universeMarkets) {
       await Promise.all(
         [
           ...new Set(
-            traders
+            globals.getAllShips()
               .filter(
                 (ship) =>
-                  ship.system === system && ship.ship.location !== undefined
+                ship.location !== undefined && ship.location.substring(0,2) === system
               )
-              .map((ship) => ship.ship.location)
+              .map((ship) => ship.location)
           ),
         ].map((loc) => {
           return globals.spaceTraders.getMarketplace(loc);
         })
       ).then((data) => {
-        const marketData = data.map((x) => x.location);
+        let marketData = data.map(x => x.location);
+        for (let market of markets) {
+            if (!marketData.find(mar => mar.symbol === market.symbol)) {
+                marketData.push(market);
+            }
+        }
         globals.universeMarkets.set(system, marketData);
       });
     }
 
-    this.calculateBestRoutes();
+    this.calculateBestIntraSystemRoutes();
+    this.calculateBestInterSystemRoutes();
   }
 
-  private static calculateBestRoutes() {
+  private static calculateBestIntraSystemRoutes() {
     for (const [system, markets] of globals.universeMarkets) {
       let priceMap: Goods[] = [];
       for (const market of markets) {
         for (const goods of market.marketplace) {
-          if (goods.symbol !== "FUEL") {
-            let item = priceMap.find((good) => good.symbol === goods.symbol);
-            const oldItem = _.cloneDeep(item);
-            let itemIndex = priceMap.indexOf(item);
-            if (item) {
-              const lowMarket = markets.find(
-                (mar) => mar.symbol === item.lowLoc
-              );
-              const highMarket = markets.find(
-                (mar) => mar.symbol === item.highLoc
-              );
-              const lowToCurrDist = MarketUtil.distance(lowMarket, market);
-              const highToCurrDist = MarketUtil.distance(highMarket, market);
+          let item = priceMap.find((good) => good.symbol === goods.symbol);
+          const oldItem = _.cloneDeep(item);
+          let itemIndex = priceMap.indexOf(item);
+          if (item) {
+            const lowMarket = markets.find(
+              (mar) => mar.symbol === item.lowLoc
+            );
+            const highMarket = markets.find(
+              (mar) => mar.symbol === item.highLoc
+            );
+            const lowToCurrDist = MarketUtil.distance(lowMarket, market);
+            const highToCurrDist = MarketUtil.distance(highMarket, market);
 
-              const currentCDV = item.cdv;
-              const newLowCDV =
-                (item.highPrice - goods.purchasePricePerUnit) /
-                highToCurrDist /
-                goods.volumePerUnit;
-              const newHighCDV =
-                (goods.sellPricePerUnit - item.lowPrice) /
-                lowToCurrDist /
-                goods.volumePerUnit;
+            const currentCDV = item.cdv;
+            const newLowCDV =
+              (item.highPrice - goods.purchasePricePerUnit) /
+              highToCurrDist /
+              goods.volumePerUnit;
+            const newHighCDV =
+              (goods.sellPricePerUnit - item.lowPrice) /
+              lowToCurrDist /
+              goods.volumePerUnit;
 
-              if (
-                (newLowCDV > currentCDV && newLowCDV !== Infinity) ||
-                item.lowLoc === market.symbol
-              ) {
-                item.lowPrice = goods.purchasePricePerUnit;
-                item.lowLoc = market.symbol;
-              }
-
-              if (
-                (newHighCDV > currentCDV && newHighCDV !== Infinity) ||
-                item.highLoc === market.symbol
-              ) {
-                item.highPrice = goods.sellPricePerUnit;
-                item.highLoc = market.symbol;
-              }
-
-              if (item.lowLoc === item.highLoc) {
-                if (newLowCDV >= newHighCDV && newLowCDV >= currentCDV) {
-                  item.highPrice = oldItem.highPrice;
-                  item.highLoc = oldItem.highLoc;
-                } else if (newHighCDV > newLowCDV && newHighCDV >= currentCDV) {
-                  item.lowPrice = oldItem.lowPrice;
-                  item.lowLoc = oldItem.lowLoc;
-                }
-              }
-              const newDist = MarketUtil.distance(
-                markets.find((loc) => loc.symbol === item.highLoc),
-                markets.find((loc) => loc.symbol === item.lowLoc)
-              );
-              item.cdv =
-                (item.highPrice - item.lowPrice) /
-                (newDist === 0 ? 1 : newDist) /
-                item.volume;
-              // console.log("Good: "+goods.symbol+" High CDV: "+newHighCDV+" Low CDV: "+newLowCDV+" Current CDV: "+currentCDV);
-              priceMap[itemIndex] = item;
-            } else {
-              priceMap.push({
-                symbol: goods.symbol,
-                lowPrice: goods.purchasePricePerUnit,
-                highPrice: goods.sellPricePerUnit,
-                lowLoc: market.symbol,
-                highLoc: market.symbol,
-                volume: goods.volumePerUnit,
-                cdv: -100,
-              });
+            if (
+              (newLowCDV > currentCDV && newLowCDV !== Infinity) ||
+              item.lowLoc === market.symbol
+            ) {
+              item.lowPrice = goods.purchasePricePerUnit;
+              item.lowLoc = market.symbol;
             }
+
+            if (
+              (newHighCDV > currentCDV && newHighCDV !== Infinity) ||
+              item.highLoc === market.symbol
+            ) {
+              item.highPrice = goods.sellPricePerUnit;
+              item.highLoc = market.symbol;
+            }
+
+            if (item.lowLoc === item.highLoc) {
+              if (newLowCDV >= newHighCDV && newLowCDV >= currentCDV) {
+                item.highPrice = oldItem.highPrice;
+                item.highLoc = oldItem.highLoc;
+              } else if (newHighCDV > newLowCDV && newHighCDV >= currentCDV) {
+                item.lowPrice = oldItem.lowPrice;
+                item.lowLoc = oldItem.lowLoc;
+              }
+            }
+            const newDist = MarketUtil.distance(
+              markets.find((loc) => loc.symbol === item.highLoc),
+              markets.find((loc) => loc.symbol === item.lowLoc)
+            );
+            item.cdv =
+              (item.highPrice - item.lowPrice) /
+              (newDist === 0 ? 1 : newDist) /
+              item.volume;
+            // console.log("Good: "+goods.symbol+" High CDV: "+newHighCDV+" Low CDV: "+newLowCDV+" Current CDV: "+currentCDV);
+            priceMap[itemIndex] = item;
+          } else {
+            priceMap.push({
+              symbol: goods.symbol,
+              lowPrice: goods.purchasePricePerUnit,
+              highPrice: goods.sellPricePerUnit,
+              lowLoc: market.symbol,
+              highLoc: market.symbol,
+              volume: goods.volumePerUnit,
+              cdv: -100,
+            });
           }
         }
       }
       globals.bestRoutesPerSystem.set(system, priceMap);
     }
   }
+
+  private static calculateBestInterSystemRoutes() {
+    let markets: LocationWithMarketplace[] = [];
+    for (const [system, systemMarkets] of globals.universeMarkets) {
+      markets = markets.concat(systemMarkets);
+    }
+    let priceMap: Goods[] = [];
+    for (const market of markets) {
+      for (const goods of market.marketplace) {
+        let item = priceMap.find((good) => good.symbol === goods.symbol);
+        const oldItem = _.cloneDeep(item);
+        let itemIndex = priceMap.indexOf(item);
+        if (item) {
+          const lowMarket = markets.find(
+            (mar) => mar.symbol === item.lowLoc
+          );
+          const highMarket = markets.find(
+            (mar) => mar.symbol === item.highLoc
+          );
+          const lowMarketWarpGate = markets.find((mar) => mar.symbol === globals.systemWarpGate.get(item.lowLoc.substring(0,2)));
+          const highMarketWarpGate = markets.find((mar) => mar.symbol === globals.systemWarpGate.get(item.highLoc.substring(0,2)));
+          const currMarketWarpGate = markets.find((mar) => mar.symbol === globals.systemWarpGate.get(market.symbol.substring(0,2)));
+          const lowToCurrDist = (item.lowLoc.substring(0,2) === market.symbol.substring(0,2)) ? MarketUtil.distance(lowMarket, market) : MarketUtil.distance(lowMarket, lowMarketWarpGate) + MarketUtil.distance(currMarketWarpGate, market);
+          const highToCurrDist = (item.highLoc.substring(0,2) === market.symbol.substring(0,2)) ? MarketUtil.distance(highMarket, market) : MarketUtil.distance(highMarket, highMarketWarpGate) + MarketUtil.distance(currMarketWarpGate, market);
+
+          const currentCDV = item.cdv;
+          const newLowCDV =
+            (item.highPrice - goods.purchasePricePerUnit) /
+            highToCurrDist /
+            goods.volumePerUnit;
+          const newHighCDV =
+            (goods.sellPricePerUnit - item.lowPrice) /
+            lowToCurrDist /
+            goods.volumePerUnit;
+
+          if (
+            (newLowCDV > currentCDV && newLowCDV !== Infinity) ||
+            item.lowLoc === market.symbol
+          ) {
+            item.lowPrice = goods.purchasePricePerUnit;
+            item.lowLoc = market.symbol;
+          }
+
+          if (
+            (newHighCDV > currentCDV && newHighCDV !== Infinity) ||
+            item.highLoc === market.symbol
+          ) {
+            item.highPrice = goods.sellPricePerUnit;
+            item.highLoc = market.symbol;
+          }
+
+          if (item.lowLoc === item.highLoc) {
+            if (newLowCDV >= newHighCDV && newLowCDV >= currentCDV) {
+              item.highPrice = oldItem.highPrice;
+              item.highLoc = oldItem.highLoc;
+            } else if (newHighCDV > newLowCDV && newHighCDV >= currentCDV) {
+              item.lowPrice = oldItem.lowPrice;
+              item.lowLoc = oldItem.lowLoc;
+            }
+          }
+          const newDist = MarketUtil.distance(
+            markets.find((loc) => loc.symbol === item.highLoc),
+            markets.find((loc) => loc.symbol === item.lowLoc)
+          );
+          item.cdv =
+            (item.highPrice - item.lowPrice) /
+            (newDist === 0 ? 1 : newDist) /
+            item.volume;
+          // console.log("Good: "+goods.symbol+" High CDV: "+newHighCDV+" Low CDV: "+newLowCDV+" Current CDV: "+currentCDV);
+          priceMap[itemIndex] = item;
+        } else {
+          priceMap.push({
+            symbol: goods.symbol,
+            lowPrice: goods.purchasePricePerUnit,
+            highPrice: goods.sellPricePerUnit,
+            lowLoc: market.symbol,
+            highLoc: market.symbol,
+            volume: goods.volumePerUnit,
+            cdv: -100,
+          });
+        }
+      }
+    }
+    globals.setGlobalBestRoutes(priceMap);
+  }
+
+
+  public static startStreamingMarketData() {
+    const ws = new WebSocket("https://dev.market.spacetraders.stream");
+
+    ws.onopen = () => {
+      ws.send('sync-locations');
+    };
+
+    ws.onmessage = (message: any) => {
+      let marketData = JSON.parse(message.data);
+
+      if (marketData.locations) {
+        for (let system of globals.knownSystems) {
+          let systemMarkets = marketData.locations.filter(loc => loc.symbol.substring(0,2) === system);
+          globals.universeMarkets.set(system, systemMarkets);
+        }
+      } else {
+        for (let marketIndex of marketData) {
+          for(let location of Object.keys(marketIndex)) {
+            let systemMarkets = globals.universeMarkets.get(location.substring(0,2));
+            let locationMarketToUpdate = systemMarkets.find(mar => mar.symbol === location);
+            let updateIndex = -1;
+            if (locationMarketToUpdate) 
+              updateIndex = systemMarkets.indexOf(locationMarketToUpdate);
+            for(let good of marketIndex[location]) {
+              let updateIndex = 0;
+              if (locationMarketToUpdate) {
+                let goodToUpdate = locationMarketToUpdate.marketplace.find(item => item.symbol === good.symbol);
+                if (goodToUpdate) {
+                  updateIndex = locationMarketToUpdate.marketplace.indexOf(goodToUpdate);
+                }
+                _.updateWith(locationMarketToUpdate, `marketplace[${updateIndex}]`, (value: Marketplace) => {
+                  return Object.assign(value, good);
+                }, Object);
+              }
+            }
+            _.updateWith(systemMarkets, `[${updateIndex}]`, (value: LocationWithMarketplace) => {
+              return Object.assign(value, locationMarketToUpdate);
+            }, Object);
+            globals.universeMarkets.set(location.substring(0,2), systemMarkets);
+          }
+        }
+      }
+
+      this.calculateBestIntraSystemRoutes();
+      this.calculateBestInterSystemRoutes();
+    }
+
+    ws.onclose = () => {
+      setTimeout(() => {
+        this.startStreamingMarketData();
+      }, 500);
+    }
+  }
 }
+
+export interface MarketData {
+  symbol: string,
+  market: MarketStreamDataGood[],
+}
+
+export interface MarketStreamDataGood {
+  symbol: string,
+  volumePerUnit: number,
+  pricePerUnit: number,
+  spread: number,
+  purchasePricePerUnit: number,
+  sellPricePerUnit: number, 
+  quantityAvailable: number,
+}
+

@@ -23,68 +23,43 @@ import * as globals from "./utils/globals";
 import { MarketUtil } from "./utils/marketUtil";
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
-
-globals.spaceTraders.init("Dunador", "69de7c70-4e32-43b5-bac0-98fc5ad7e920");
-// let currentShips: LoadedShip[] = [];
-// let currentShip: LoadedShip;
+let token: string = "ddfb6d61-a6d1-485d-a79e-279ec2586742";
+const username: string = "DunadorRedo";
+globals.spaceTraders.init(username, token).then(() => {}, async () => {
+  newAccount();
+});
 let intraTraders: IntraSystemTrader[] = [];
 let locationScouts: LocationScout[] = [];
 const shipsToBuy: Map<string, any> = new Map();
 
 async function main() {
-  globals.knownSystems.forEach(async (system) => {
-    const locations = (await globals.spaceTraders.listLocations(system))
-      .locations;
-    globals.locationMap.set(
-      system,
-      locations.filter((loc) => loc.type !== "WORMHOLE")
-    );
-    globals.bestRoutesPerSystem.set(system, []);
-    globals.universeMarkets.set(system, []);
-    shipsToBuy.set(system, {
-      Gravager: {
-        "MK-I": 10,
-        "MK-II": 0,
-        "MK-III": 30,
-      },
-      Jackshaw: {
-        "MK-I": 0,
-        "MK-II": 0,
-        "MK-III": 0,
-      },
-      Electrum: {
-        "MK-I": 0,
-        "MK-II": 0,
-        "MK-III": 0,
-      },
-      Zetra: {
-        "MK-I": 0,
-        "MK-II": 0,
-      },
-      Hermes: {
-        "MK-I": 0,
-        "MK-II": 0,
-        "MK-III": 15,
-      },
-    });
-  });
+  initialize();
+  MarketUtil.startStreamingMarketData();
   while (true) {
     try {
       try {
         await globals.spaceTraders.getAccount().then((d) => {
           globals.setCredits(d.user.credits);
+        }, async () => {
+          //newAccount();
+          //initialize();
         });
         await globals.spaceTraders.getShips().then(
           async (d) => {
+            globals.setAllShips(d.ships);
             if (_.isEmpty(intraTraders)) {
               for (const ship of d.ships) {
                 let trader = new IntraSystemTrader(ship);
                 if (ship.location) {
                   trader.system = ship.location.substring(0, 2);
                 } else {
-                  trader.system = await (
-                    await globals.spaceTraders.getFlightPlan(ship.flightPlanId)
-                  ).flightPlan.destination.substring(0, 2);
+                  try {
+                    trader.system = await (
+                      await globals.spaceTraders.getFlightPlan(ship.flightPlanId)
+                    ).flightPlan.destination.substring(0, 2);
+                  } catch (e) {
+                    console.log(e);
+                  }
                 }
                 if (ship.manufacturer === "Jackshaw")
                   locationScouts.push(new LocationScout(ship, trader.system));
@@ -105,10 +80,15 @@ async function main() {
                 if (ship.location) {
                   system = ship.location.substring(0, 2);
                 } else {
-                  const flight = await globals.spaceTraders.getFlightPlan(
-                    ship.flightPlanId
-                  );
-                  system = flight.flightPlan.destination.substring(0, 2);
+                  try {
+                    const flight = await globals.spaceTraders.getFlightPlan(
+                      ship.flightPlanId
+                    );
+                    system = flight.flightPlan.destination.substring(0, 2);
+                  }
+                  catch (e) {
+                    console.log(e);
+                  }
                 }
 
                 if (updateShip) {
@@ -126,7 +106,7 @@ async function main() {
           },
           (e) => { }
         );
-        await MarketUtil.updateMarketData(locationScouts);
+        // await MarketUtil.updateMarketData();
       } catch (e) {
         console.log(e);
       }
@@ -162,7 +142,8 @@ async function checkPurchaseNewShip() {
               currShip.system === system
             );
           }).length &&
-          purchaseLocation.location.substring(0, 2) === system
+          purchaseLocation.location.substring(0, 2) === system &&
+          globals.getAllShips().find(ship => ship.location === purchaseLocation.location)
         ) {
           try {
             await globals.spaceTraders.purchaseShip(
@@ -181,8 +162,55 @@ async function checkPurchaseNewShip() {
   }
 }
 
+async function initialize () {
+  globals.knownSystems.forEach(async (system) => {
+    const locations = (await globals.spaceTraders.listLocations(system))
+      .locations;
+    globals.locationMap.set(
+      system,
+      locations.filter((loc) => loc.type !== "WORMHOLE")
+    );
+    globals.bestRoutesPerSystem.set(system, []);
+    globals.universeMarkets.set(system, []);
+    globals.setCredits(0);
+    globals.setAllShips([]);
+    shipsToBuy.set(system, {
+      Gravager: {
+        "MK-I": 0,
+        "MK-II": 0,
+        "MK-III": 15,
+      },
+      Jackshaw: {
+        "MK-I": 21,
+        "MK-II": 0,
+        "MK-III": 0,
+      },
+      Electrum: {
+        "MK-I": 0,
+        "MK-II": 0,
+        "MK-III": 0,
+        "MK-IV": 0
+      },
+      Zetra: {
+        "MK-I": 0,
+        "MK-II": 0,
+      },
+      Hermes: {
+        "MK-I": 0,
+        "MK-II": 0,
+        "MK-III": 15,
+      },
+    });
+  });
+}
+
+async function newAccount() {
+  await globals.spaceTraders.init(username);
+  await globals.spaceTraders.takeOutLoan("STARTUP");
+}
+
 main();
 
-// setInterval(() => {
-//   generateDisplay(intraTraders, globals.bestRoutesPerSystem);
-// }, 5000).unref();
+setInterval(() => {
+  generateDisplay(intraTraders, globals.bestRoutesPerSystem);
+}, 15000).unref();

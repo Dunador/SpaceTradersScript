@@ -118,6 +118,19 @@ export function generateDisplay(
     })
   );
 
+  marketData.push([]);
+  marketData.push(["Cross System"]);
+  marketData = marketData.concat(_.orderBy(globals.bestRoutesUniversally, ["cdv"], ["desc"]).map((item) => {
+    return [
+      item.symbol,
+      item.highPrice.toString(),
+      item.highLoc,
+      item.lowPrice.toString(),
+      item.lowLoc,
+      item.cdv.toString(),
+    ];
+  }));
+
   marketDataTable.setData(marketData);
 
   screen.render();

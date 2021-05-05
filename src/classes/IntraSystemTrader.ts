@@ -30,38 +30,36 @@ export class IntraSystemTrader implements LoadedShip {
   private async sellGoods(stationMarket: Marketplace[]) {
     if (this.ship.cargo.length > 0) {
       for (const item of this.ship.cargo) {
-        if (item.good !== "FUEL") {
-          const stationGood = stationMarket.find((good) => {
-            return good.symbol == item.good && good.symbol !== "FUEL";
-          });
-          const systemGoods = globals.bestRoutesPerSystem.get(
-            this.ship.location.substring(0, 2)
-          );
-          const marketData = systemGoods.find(
-            (good) => good.symbol === item.good
-          );
-          if (
-            stationGood &&
-            marketData &&
-            marketData.lowLoc !== this.ship.location
-          ) {
-            let qtyToSell = item.quantity;
-            while (qtyToSell > 0) {
-              try {
-                const order = await globals.spaceTraders.sellGood(
-                  this.ship.id,
-                  item.good,
-                  qtyToSell > 300 ? 300 : qtyToSell
-                );
-                qtyToSell -= 300;
-                this.ship = order.ship;
-                globals.addCredits(order.order.total);
-              } catch (e) {
-                console.log(e);
-                break;
-              }
+        const stationGood = stationMarket.find((good) => {
+          return good.symbol == item.good;
+        });
+        const systemGoods = globals.bestRoutesPerSystem.get(
+          this.ship.location.substring(0, 2)
+        );
+        const marketData = systemGoods.find(
+          (good) => good.symbol === item.good
+        );
+        if (
+          stationGood &&
+          marketData &&
+          marketData.lowLoc !== this.ship.location
+        ) {
+          let qtyToSell = item.quantity;
+          while (qtyToSell > 0) {
+            try {
+              const order = await globals.spaceTraders.sellGood(
+                this.ship.id,
+                item.good,
+                qtyToSell > 500 ? 500 : qtyToSell
+              );
+              qtyToSell -= 500;
+              this.ship = order.ship;
+              globals.addCredits(order.order.total);
+            } catch (e) {
+              console.log(e);
+              break;
             }
-          }
+          } 
         }
       }
     }
@@ -140,7 +138,7 @@ export class IntraSystemTrader implements LoadedShip {
       if (
         this.ship.spaceAvailable > routeFuel &&
         goodToBuy.cdv > 0 &&
-        globals.getCredits() - creditsToMaintain - routeFuel * 2 >
+        globals.getCredits() - creditsToMaintain - (routeFuel * 15) >
           goodToBuy.lowPrice
       ) {
         let quantityToBuy = Math.floor(
@@ -165,9 +163,9 @@ export class IntraSystemTrader implements LoadedShip {
             const order = await globals.spaceTraders.purchaseGood(
               this.ship.id,
               goodToBuy.symbol,
-              quantityToBuy > 300 ? 300 : quantityToBuy
+              quantityToBuy > 500 ? 500 : quantityToBuy
             );
-            quantityToBuy -= 300;
+            quantityToBuy -= 500;
             this.ship = order.ship;
             globals.addCredits(order.order.total * -1);
           } catch (e) {
@@ -189,9 +187,13 @@ export class IntraSystemTrader implements LoadedShip {
     const targetData = MarketUtil.calculateFuelNeededForGood(this.ship);
     const targetDest = targetData.targetDest;
     const fuelNeeded = targetData.fuelNeeded;
-    let goodToSell: Cargo = this.ship.cargo.find((good) => {
-      return good.good !== "FUEL";
-    });
+    let goodToSell: Cargo;
+    if (this.ship.cargo.length > 1) 
+      goodToSell = this.ship.cargo.find((good) => {
+        return good.good !== "FUEL";
+      });
+    else
+      goodToSell = this.ship.cargo[0];
     if (!_.isEmpty(goodToSell)) {
       const systemGoods = globals.bestRoutesPerSystem.get(
         this.ship.location.substring(0, 2)
@@ -232,7 +234,7 @@ export class IntraSystemTrader implements LoadedShip {
         }
       }
     }
-    if (this.ship.location !== "XV-BN" && fuelNeeded > 0) {
+    if (fuelNeeded > 0) {
       try {
         let tmp = await globals.spaceTraders.purchaseGood(
           this.ship.id,
@@ -242,7 +244,6 @@ export class IntraSystemTrader implements LoadedShip {
         globals.addCredits(tmp.order.total * -1);
         this.ship = tmp.ship;
       } catch (e) {
-        console.log(e);
       }
     }
 
@@ -253,7 +254,6 @@ export class IntraSystemTrader implements LoadedShip {
           this.ship.location = null;
         });
     } catch (e) {
-      console.log(e);
     }
   }
 }
