@@ -23,10 +23,10 @@ import * as globals from "./utils/globals";
 import { MarketUtil } from "./utils/marketUtil";
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
-let token: string = "ddfb6d61-a6d1-485d-a79e-279ec2586742";
-const username: string = "DunadorRedo";
+let token: string = "64282302-119f-4d3c-9308-aa44eebe3656";
+const username: string = "DunadorGotStolenByMyOwnScript";
 globals.spaceTraders.init(username, token).then(() => {}, async () => {
-  newAccount();
+  // newAccount();
 });
 let intraTraders: IntraSystemTrader[] = [];
 let locationScouts: LocationScout[] = [];
@@ -34,15 +34,15 @@ const shipsToBuy: Map<string, any> = new Map();
 
 async function main() {
   initialize();
-  MarketUtil.startStreamingMarketData();
+  // MarketUtil.startStreamingMarketData();
   while (true) {
     try {
       try {
         await globals.spaceTraders.getAccount().then((d) => {
           globals.setCredits(d.user.credits);
         }, async () => {
-          //newAccount();
-          //initialize();
+          // newAccount();
+          // initialize();
         });
         await globals.spaceTraders.getShips().then(
           async (d) => {
@@ -61,7 +61,7 @@ async function main() {
                     console.log(e);
                   }
                 }
-                if (ship.manufacturer === "Jackshaw")
+                if (ship.manufacturer === "Jackshaw" && intraTraders.length > 0)
                   locationScouts.push(new LocationScout(ship, trader.system));
                 else intraTraders.push(trader);
               }
@@ -95,7 +95,7 @@ async function main() {
                   updateShip.system = system;
                   updateShip.ship = ship;
                 } else {
-                  if (ship.manufacturer === "Jackshaw")
+                  if (ship.manufacturer === "Jackshaw" && intraTraders.length > 0)
                     locationScouts.push(new LocationScout(ship, system));
                   else intraTraders.push(new IntraSystemTrader(ship, system));
                 }
@@ -106,7 +106,7 @@ async function main() {
           },
           (e) => { }
         );
-        // await MarketUtil.updateMarketData();
+        await MarketUtil.updateMarketData();
       } catch (e) {
         console.log(e);
       }
@@ -114,6 +114,9 @@ async function main() {
       for (const cargoShip of intraTraders) {
         await cargoShip.handleTrade();
       }
+
+      for (const ship of locationScouts) 
+        await ship.scoutLocation();
       await checkPurchaseNewShip();
     } catch (e) {
       console.log(e);
@@ -135,11 +138,10 @@ async function checkPurchaseNewShip() {
         if (
           creditsToHold + purchaseLocation.price <= globals.getCredits() &&
           shipsInSystemToBuy[ship.manufacturer][ship.class] >
-          _.filter(intraTraders, (currShip) => {
+          _.filter(globals.getAllShips(), (currShip) => {
             return (
-              currShip.ship.manufacturer === ship.manufacturer &&
-              currShip.ship.class === ship.class &&
-              currShip.system === system
+              currShip.manufacturer === ship.manufacturer &&
+              currShip.class === ship.class 
             );
           }).length &&
           purchaseLocation.location.substring(0, 2) === system &&
@@ -181,7 +183,7 @@ async function initialize () {
         "MK-III": 15,
       },
       Jackshaw: {
-        "MK-I": 21,
+        "MK-I": 10,
         "MK-II": 0,
         "MK-III": 0,
       },
@@ -205,6 +207,7 @@ async function initialize () {
 }
 
 async function newAccount() {
+  console.log("IN NEW ACCOUNT");
   await globals.spaceTraders.init(username);
   await globals.spaceTraders.takeOutLoan("STARTUP");
 }

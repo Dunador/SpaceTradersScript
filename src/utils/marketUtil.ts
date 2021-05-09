@@ -53,20 +53,7 @@ export class MarketUtil {
             currentLoc &&
             targetDest.symbol !== currentLoc.symbol
           ) {
-            const distanceToMarket = this.distance(targetDest, currentLoc);
-            let penalty = 0;
-            if (currentLoc.type.toLowerCase() === "planet") {
-              penalty += 2;
-              penalty += ship.class === "MK-II" ? 1 : 0;
-              penalty += ship.class === "MK-III" ? 2 : 0;
-            }
-            let fuelNeeded = Math.round(distanceToMarket / 4) + penalty + 1;
-            if (noFuelLocations.includes(targetDest.symbol))
-              fuelNeeded = fuelNeeded * 2;
-
-            fuelNeeded -=
-              ship.cargo.find((item) => item.good === "FUEL")?.quantity || 0;
-            if (fuelNeeded < 0) fuelNeeded = 0;
+            const fuelNeeded = this.getFuelNeeded(ship, currentLoc, targetDest);
             return { targetDest: targetDest.symbol, fuelNeeded };
           } else {
             return this.backupNavigation(systemLocations, ship);
@@ -98,18 +85,8 @@ export class MarketUtil {
       targetDest = systemLocs.find((loc) => loc.symbol !== ship.location);
     }
     const currentLoc = systemLocs.find((loc) => loc.symbol === ship.location);
-    const tripDist = this.distance(targetDest, currentLoc);
 
-    let penalty = 0;
-    if (currentLoc.type.toLowerCase() === "planet") {
-      penalty += 2;
-      penalty += ship.class === "MK-II" ? 1 : 0;
-      penalty += ship.class === "MK-III" ? 2 : 0;
-    }
-    let fuelNeeded = Math.round(tripDist / 4) + penalty + 1;
-    fuelNeeded -=
-      ship.cargo.find((item) => item.good === "FUEL")?.quantity || 0;
-    if (fuelNeeded < 0) fuelNeeded = 0;
+    const fuelNeeded = this.getFuelNeeded(ship, currentLoc, targetDest);
 
     return { targetDest: targetDest.symbol, fuelNeeded };
   }
@@ -148,6 +125,24 @@ export class MarketUtil {
 
     this.calculateBestIntraSystemRoutes();
     this.calculateBestInterSystemRoutes();
+  }
+
+  public static getFuelNeeded(ship: YourShip, currentLoc: Location, destination: Location) {
+    const distance = this.distance(currentLoc, destination);
+    
+    let penalty = 0;
+    if (currentLoc.type.toLowerCase() === "planet") {
+      penalty += 2;
+      penalty += ship.class === "MK-II" ? 1 : 0;
+      penalty += ship.class === "MK-III" ? 2 : 0;
+    }
+    let fuelNeeded = Math.round(distance / 4) + penalty + 1;
+    if (noFuelLocations.includes(destination.symbol)) fuelNeeded = fuelNeeded * 2;
+    fuelNeeded -=
+      ship.cargo.find((item) => item.good === "FUEL")?.quantity || 0;
+    if (fuelNeeded < 0) fuelNeeded = 0;
+
+    return fuelNeeded;
   }
 
   private static calculateBestIntraSystemRoutes() {
