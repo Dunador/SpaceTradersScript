@@ -16,9 +16,10 @@ export class IntraSystemTrader implements LoadedShip {
 
   public async handleTrade() {
     if (this.ship.location) {
-      const stationMarket = globals.universeMarkets
-        .get(this.ship.location.substring(0, 2))
-        .find((mar) => mar.symbol === this.ship.location).marketplace;
+      const systemMarkets = globals.universeMarkets.get(this.ship.location.substring(0, 2));
+      let stationMarket;
+      if (systemMarkets)
+        stationMarket = systemMarkets.find((mar) => mar.symbol === this.ship.location).marketplace;
       if (stationMarket) {
         await this.sellGoods(stationMarket);
         await this.buyGoods(stationMarket);
@@ -33,9 +34,7 @@ export class IntraSystemTrader implements LoadedShip {
         const stationGood = stationMarket.find((good) => {
           return good.symbol == item.good;
         });
-        const systemGoods = globals.bestRoutesPerSystem.get(
-          this.ship.location.substring(0, 2)
-        );
+        const systemGoods = globals.getAllShips().find(x => x.ship.id === this.ship.id).goodMap.get(this.ship.location.substring(0,2));
         const marketData = systemGoods.find(
           (good) => good.symbol === item.good
         );
@@ -50,9 +49,9 @@ export class IntraSystemTrader implements LoadedShip {
               const order = await globals.spaceTraders.sellGood(
                 this.ship.id,
                 item.good,
-                qtyToSell > 500 ? 500 : qtyToSell
+                qtyToSell > this.ship['loadingSpeed'] ? this.ship['loadingSpeed'] : qtyToSell
               );
-              qtyToSell -= 500;
+              qtyToSell -= this.ship['loadingSpeed'];
               this.ship = order.ship;
               globals.addCredits(order.order.total);
             } catch (e) {
@@ -68,9 +67,7 @@ export class IntraSystemTrader implements LoadedShip {
   private async buyGoods(stationMarket: Marketplace[]) {
     let goodToBuy: Goods;
     let goodMarketData: Marketplace;
-    const systemGoods = globals.bestRoutesPerSystem.get(
-      this.ship.location.substring(0, 2)
-    );
+    const systemGoods = globals.getAllShips().find(x => x.ship.id === this.ship.id).goodMap.get(this.ship.location.substring(0,2));
     let orderedMarket = _.orderBy(systemGoods, ["cdv"], ["desc"]);
     const creditsToMaintain = globals.getCreditsToMaintain();
 
@@ -93,41 +90,6 @@ export class IntraSystemTrader implements LoadedShip {
       goodMarketData = stationMarket.find(
         (good) => good.symbol === goodToBuy.symbol
       );
-    } else {
-      const currMarket = globals.universeMarkets
-        .get(this.system)
-        .find((mar) => mar.symbol === this.ship.location);
-      const targetMarket = globals.universeMarkets
-        .get(this.system)
-        .find((mar) => mar.symbol === orderedMarket[0].lowLoc);
-      let bestGood: Goods,
-        bestGoodData: Marketplace,
-        bestGoodCDV = -100;
-      for (const item of currMarket.marketplace) {
-        let targetItem = targetMarket.marketplace.find(
-          (x) => item.symbol === x.symbol
-        );
-        if (targetItem) {
-          let itemCDV =
-            (targetItem.sellPricePerUnit - item.purchasePricePerUnit) /
-            item.volumePerUnit;
-          if (itemCDV > bestGoodCDV) {
-            bestGoodData = item;
-            bestGood = {
-              lowLoc: currMarket.symbol,
-              highLoc: targetMarket.symbol,
-              lowPrice: item.purchasePricePerUnit,
-              highPrice: targetItem.sellPricePerUnit,
-              volume: item.volumePerUnit,
-              cdv: itemCDV,
-              symbol: item.symbol,
-            };
-            bestGoodCDV = itemCDV;
-          }
-        }
-      }
-      goodToBuy = bestGood;
-      goodMarketData = bestGoodData;
     }
     if (goodToBuy && goodMarketData) {
       const routeFuel = MarketUtil.calculateFuelNeededForGood(
@@ -163,9 +125,9 @@ export class IntraSystemTrader implements LoadedShip {
             const order = await globals.spaceTraders.purchaseGood(
               this.ship.id,
               goodToBuy.symbol,
-              quantityToBuy > 500 ? 500 : quantityToBuy
+              quantityToBuy > this.ship['loadingSpeed'] ? this.ship['loadingSpeed'] : quantityToBuy
             );
-            quantityToBuy -= 500;
+            quantityToBuy -= this.ship['loadingSpeed'];
             this.ship = order.ship;
             globals.addCredits(order.order.total * -1);
           } catch (e) {
@@ -195,9 +157,7 @@ export class IntraSystemTrader implements LoadedShip {
     else
       goodToSell = this.ship.cargo[0];
     if (!_.isEmpty(goodToSell)) {
-      const systemGoods = globals.bestRoutesPerSystem.get(
-        this.ship.location.substring(0, 2)
-      );
+      const systemGoods = globals.getAllShips().find(x => x.ship.id === this.ship.id).goodMap.get(this.ship.location.substring(0,2));
       let goodToSellData: Goods = systemGoods.find((marketGood) => {
         return marketGood.symbol === goodToSell.good;
       });

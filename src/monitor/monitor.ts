@@ -1,3 +1,4 @@
+import { IntraSystemTrader } from './../classes/IntraSystemTrader';
 import * as blessed from "blessed";
 import * as _ from "lodash";
 import { User } from "spacetraders-sdk/dist/types";
@@ -15,31 +16,10 @@ let screen = blessed.screen({
 
 screen.title = "Space Trader Monitor";
 
-let marketDataTable = blessed.listtable({
-  top: 0,
-  left: 0,
-  padding: 0,
-  height: "50%",
-  width: "100%",
-  keys: true,
-  mouse: true,
-  alwaysScroll: true,
-  scrollable: true,
-  border: "line",
-  scrollbar: {
-    style: {
-      ch: " ",
-      bg: "red",
-    },
-  },
-});
-
-screen.append(marketDataTable);
-
 let table = blessed.listtable({
   bottom: 0,
   left: 0,
-  height: "50%",
+  height: "100%",
   width: "100%",
   align: "center",
   border: "line",
@@ -61,17 +41,8 @@ screen.key(["escape", "q", "C-c"], function (ch, key) {
   return process.exit(0);
 });
 
-marketDataTable.key(["tab"], (ch, key) => {
-  table.focus();
-});
-
-table.key(["tab"], (ch, key) => {
-  marketDataTable.focus();
-});
-
 export function generateDisplay(
-  ships: LoadedShip[],
-  marketGoods: Map<string, Goods[]>
+  ships: IntraSystemTrader[],
 ) {
   let data = [
     [
@@ -81,66 +52,21 @@ export function generateDisplay(
       "",
       "Ship Count: " + ships.length,
     ],
-    ["Ship ID", "Ship Type", "Location", "Cargo Space", "Cargo Items"],
+    ["Ship ID", "Ship Type", "Location", "Cargo Space", "Cargo Items", "Targetting Item", "Item CDV"],
   ];
   data = data.concat(generateData(ships));
   table.setData(data);
-
-  let marketData = [
-    ["Item", "High Price", "High Loc", "Low Price", "Low Loc", "CDV"],
-  ];
-  marketData.push([]);
-  marketData.push(["OE System"]);
-  marketData = marketData.concat(
-    _.orderBy(marketGoods.get("OE"), ["cdv"], ["desc"]).map((item) => {
-      return [
-        item.symbol,
-        item.highPrice.toString(),
-        item.highLoc,
-        item.lowPrice.toString(),
-        item.lowLoc,
-        item.cdv.toString(),
-      ];
-    })
-  );
-  marketData.push([]);
-  marketData.push(["XV System"]);
-  marketData = marketData.concat(
-    _.orderBy(marketGoods.get("XV"), ["cdv"], ["desc"]).map((item) => {
-      return [
-        item.symbol,
-        item.highPrice.toString(),
-        item.highLoc,
-        item.lowPrice.toString(),
-        item.lowLoc,
-        item.cdv.toString(),
-      ];
-    })
-  );
-
-  marketData.push([]);
-  marketData.push(["Cross System"]);
-  marketData = marketData.concat(_.orderBy(globals.bestRoutesUniversally, ["cdv"], ["desc"]).map((item) => {
-    return [
-      item.symbol,
-      item.highPrice.toString(),
-      item.highLoc,
-      item.lowPrice.toString(),
-      item.lowLoc,
-      item.cdv.toString(),
-    ];
-  }));
-
-  marketDataTable.setData(marketData);
-
   screen.render();
 }
 
-function generateData(ships: LoadedShip[]) {
+function generateData(ships: IntraSystemTrader[]) {
   const orderedShips = _.sortBy(ships, ["ships.id"]);
 
   let data: string[][] = [];
+
   for (const ship of orderedShips) {
+    let marketRoutes = globals.getAllShips().find(x => x.ship.id === ship.ship.id).goodMap.get(ship.system).sort((a, b) => b.cdv - a.cdv);
+
     data.push([
       ship.ship.id,
       ship.ship.type,
@@ -150,7 +76,10 @@ function generateData(ships: LoadedShip[]) {
         .map((item) => item.good + " x " + item.quantity)
         .filter((item) => item)
         .join(", "),
-    ]);
+      marketRoutes[0].symbol,
+      marketRoutes[0].cdv.toString(),
+    ],
+);
   }
 
   data = _.orderBy(data, (item) => {
